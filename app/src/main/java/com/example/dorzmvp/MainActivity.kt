@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
@@ -46,6 +48,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HomeScreenUI(){
     TopBar()
+    TaxiMenu()
 }
 @Composable
 fun TopBar(){
@@ -68,20 +71,36 @@ fun TopBar(){
 
         Text(
             text = "Search here",
+            textAlign = TextAlign.Left,
             fontSize = 32.sp,
             color = Color.Gray,
             modifier = Modifier
+                .fillMaxWidth()
                 .background(Color.White) // Text background
                 .padding(12.dp)          // padding inside background
                 .wrapContentSize()       // lets the background wrap the text
         )
+    }
+}
 
-        Spacer(modifier = Modifier.width(12.dp)) // optional spacing
+@Composable
+fun TaxiMenu(){
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .border(
+                width = 1.dp,
+                color = Color.Black,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            )
+    ) {
+        item {
+            Text(text = "ed")
+            Text(text = "edfd")
+            Text(text = "fdjslkf")
 
-        Icon(
-            imageVector = Icons.Default.Favorite,
-            contentDescription = null,
-            modifier = Modifier.size(32.dp)
-        )
+        }
     }
 }
