@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
                     HomeScreenUI(navController)
                 }
                 composable("book_ride_one"){
-                    /* TODO */
+                    BookARideMainUI(navController)
                 }
 
                 composable("book_ride_start"){
