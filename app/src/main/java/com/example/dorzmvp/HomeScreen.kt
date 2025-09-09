@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -169,6 +170,7 @@ fun TaxiMenuElement(
     Column(
         modifier = Modifier
             .size(elementSize) // Set the size of the Column (the clickable area).
+            .clip(CircleShape) // Clip the Column to a circular shape.
             .clickable(onClick = onClick) // Make the Column clickable, executing the onClick lambda.
             .border( // Add a circular border to the element.
                 width = 1.dp, // Border width.
