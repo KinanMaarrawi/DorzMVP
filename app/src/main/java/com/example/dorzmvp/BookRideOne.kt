@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.compose.ui.unit.sp
 
-/**
+/**w
  * Main Composable for the first screen of the "Book a Ride" flow.
  * It sets up the overall layout, including a top bar and the ride planning section.
  *
@@ -87,7 +87,8 @@ fun RideBox(navController: NavController){
     val cornerRadius = 24.dp // Corner radius for the main ride box.
     val nestedBoxCornerRadius = 8.dp // Corner radius for the inner clickable boxes (pickup/destination).
 
-    // Outer container for the ride planning section with shadow and rounded corners.
+    // Outer container for the ride planning secti
+    //on with shadow and rounded corners.
     Box(
         modifier = Modifier
             .fillMaxWidth() // Span the entire width.

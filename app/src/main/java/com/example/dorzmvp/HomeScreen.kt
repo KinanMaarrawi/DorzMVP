@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -95,56 +97,68 @@ fun TopBar(){
  */
 @Composable
 fun TaxiMenu(navController: NavController) {
-    Column(
+    val cornerRadius = 24.dp // Corner radius for the main box (consistent with book a ride menu)
+
+    Box(
         modifier = Modifier
-            .fillMaxWidth() // Make the Column take up the entire available width.
-            .padding(horizontal = 16.dp) // Add horizontal padding of 16 dp.
-            .border( // Add a border around the Column.
-                width = 1.dp, // Border width of 1 dp.
-                color = Color.Black, // Border color black.
-                shape = RoundedCornerShape(8.dp) // Rounded corners with a radius of 8 dp.
+            .fillMaxWidth() // Span the entire width.
+            .padding(horizontal = 16.dp) // Horizontal padding to create space from screen edges.
+            .shadow(
+                elevation = 4.dp, // Shadow elevation for a floating effect.
+                shape = RoundedCornerShape(cornerRadius), // Shadow shape matches the box's shape.
+                clip = false // Allow shadow to be drawn outside the bounds of the composable if needed.
             )
-            .padding(8.dp) // Add padding of 8 dp inside the border.
+            .background(
+                color = Color.White, // Background color of the box.
+                shape = RoundedCornerShape(cornerRadius) // Apply rounded corners to the background.
+            )
+            .padding(16.dp) // Inner padding for the content within this box.
     ) {
-        Text(
-            text = "Book a Ride",
-            color = Color.Red, // Set the text color to red.
-            fontSize = 20.sp, // Set the font size to 20 sp.
-            fontWeight = FontWeight.Bold, // Make the text bold.
+        Column(
             modifier = Modifier
-                .align(Alignment.Start) // Align the text to the start of the Column.
-                .padding(bottom = 8.dp) // Add padding of 8 dp to the bottom of the text.
-        )
-        LazyRow( // A horizontally scrolling list that only composes and lays out the currently visible items.
-            horizontalArrangement = Arrangement.spacedBy(8.dp), // Add 8 dp of space between each item in the LazyRow.
-            modifier = Modifier.fillMaxWidth() // Make the LazyRow take up the entire available width.
+                .fillMaxWidth() // Make the Column take up the entire available width.
+                .padding(horizontal = 16.dp) // Add horizontal padding of 16 dp.
         ) {
-            item { // Defines a single item in the LazyRow.
-                TaxiMenuElement(
-                    imageVector = Icons.Default.Done, // Icon for "Instant Ride".
-                    text = "Instant Ride",
-                    onClick = {
-                        navController.navigate("book_ride_one") // Navigate to the "book_ride_one" screen on click.
-                    }
-                )
-            }
-            item {
-                TaxiMenuElement(
-                    imageVector = Icons.Default.Favorite, // Icon for "Last Ride".
-                    text = "Last Ride",
-                    onClick = {
-                        navController.navigate("last_ride") // Navigate to the "last_ride" screen on click.
-                    }
-                )
-            }
-            item {
-                TaxiMenuElement(
-                    imageVector = Icons.Default.Add, // Icon for "Saved Addresses".
-                    text = "Saved Addresses",
-                    onClick = {
-                        navController.navigate("saved_addresses") // Navigate to the "saved_addresses" screen on click.
-                    }
-                )
+            Text(
+                text = "Book a Ride",
+                color = Color.Red, // Set the text color to red.
+                fontSize = 20.sp, // Set the font size to 20 sp.
+                fontWeight = FontWeight.Bold, // Make the text bold.
+                modifier = Modifier
+                    .align(Alignment.Start) // Align the text to the start of the Column.
+                    .padding(bottom = 8.dp) // Add padding of 8 dp to the bottom of the text.
+            )
+            LazyRow( // A horizontally scrolling list that only composes and lays out the currently visible items.
+                horizontalArrangement = Arrangement.spacedBy(8.dp), // Add 8 dp of space between each item in the LazyRow.
+                modifier = Modifier.fillMaxWidth() // Make the LazyRow take up the entire available width.
+            ) {
+                item { // Defines a single item in the LazyRow.
+                    TaxiMenuElement(
+                        imageVector = Icons.Default.Done, // Icon for "Instant Ride".
+                        text = "Instant Ride",
+                        onClick = {
+                            navController.navigate("book_ride_one") // Navigate to the "book_ride_one" screen on click.
+                        }
+                    )
+                }
+                item {
+                    TaxiMenuElement(
+                        imageVector = Icons.Default.Favorite, // Icon for "Last Ride".
+                        text = "Last Ride",
+                        onClick = {
+                            navController.navigate("last_ride") // Navigate to the "last_ride" screen on click.
+                        }
+                    )
+                }
+                item {
+                    TaxiMenuElement(
+                        imageVector = Icons.Default.Add, // Icon for "Saved Addresses".
+                        text = "Saved Addresses",
+                        onClick = {
+                            navController.navigate("saved_addresses") // Navigate to the "saved_addresses" screen on click.
+                        }
+                    )
+                }
             }
         }
     }
