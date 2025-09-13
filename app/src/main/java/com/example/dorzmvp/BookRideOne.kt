@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
-import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,18 +26,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable // Added import
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import androidx.compose.ui.unit.sp
-import com.google.android.gms.maps.model.LatLng // For LatLng type
+import androidx.navigation.NavController
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,29 +48,47 @@ import java.util.Locale
 
 /**
  * Main Composable for the first screen of the "Book a Ride" flow.
+ * It handles the selection of both start and destination locations and displays a summary.
  */
 @Composable
-fun BookARideMainUI(navController : NavController) {
-    var selectedStartLocation by rememberSaveable { mutableStateOf<LatLng?>(null) } // Changed to rememberSaveable
-    var startAddress by rememberSaveable { mutableStateOf<String?>(null) } // Changed to rememberSaveable
+fun BookARideMainUI(navController: NavController) {
+    var selectedStartLocation by rememberSaveable { mutableStateOf<LatLng?>(null) }
+    var startAddress by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedDestinationLocation by rememberSaveable { mutableStateOf<LatLng?>(null) }
+    var destinationAddress by rememberSaveable { mutableStateOf<String?>(null) }
+
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     val navBackStackEntry = navController.currentBackStackEntry
-    val selectedLocationResult = navBackStackEntry?.savedStateHandle?.getLiveData<LatLng>("selectedStartLocation")?.observeAsState()
 
-    LaunchedEffect(selectedLocationResult) {
-        selectedLocationResult?.value?.let { latLng ->
-            if (selectedStartLocation != latLng) { // Only update if it's a new location
+    // Observe selected start location
+    val startLocationResult = navBackStackEntry?.savedStateHandle?.getLiveData<LatLng>("selectedStartLocation")?.observeAsState()
+    LaunchedEffect(startLocationResult) {
+        startLocationResult?.value?.let { latLng ->
+            if (selectedStartLocation != latLng) {
                 selectedStartLocation = latLng
-                startAddress = null // Clear previous address immediately
+                startAddress = null // Clear previous address immediately, will be updated below
                 coroutineScope.launch {
                     startAddress = getAddressFromLatLng(context, latLng)
                 }
             }
-            // Clear the value from SavedStateHandle after processing to avoid re-processing on config change if not desired
-            // Or only if the value has genuinely changed and been processed.
-            navBackStackEntry?.savedStateHandle?.remove<LatLng>("selectedStartLocation")
+            navBackStackEntry.savedStateHandle.remove<LatLng>("selectedStartLocation")
+        }
+    }
+
+    // Observe selected destination location
+    val destinationLocationResult = navBackStackEntry?.savedStateHandle?.getLiveData<LatLng>("selectedDestinationLocation")?.observeAsState()
+    LaunchedEffect(destinationLocationResult) {
+        destinationLocationResult?.value?.let { latLng ->
+            if (selectedDestinationLocation != latLng) {
+                selectedDestinationLocation = latLng
+                destinationAddress = null // Clear previous address immediately, will be updated below
+                coroutineScope.launch {
+                    destinationAddress = getAddressFromLatLng(context, latLng)
+                }
+            }
+            navBackStackEntry.savedStateHandle.remove<LatLng>("selectedDestinationLocation")
         }
     }
 
@@ -80,41 +99,46 @@ fun BookARideMainUI(navController : NavController) {
     ) {
         TopBarBookRide()
         Spacer(modifier = Modifier.height(24.dp))
-        RideBox(navController = navController, selectedStartLocation = selectedStartLocation, startAddress = startAddress)
+        RideBox(
+            navController = navController,
+            selectedStartLocation = selectedStartLocation,
+            startAddress = startAddress,
+            selectedDestinationLocation = selectedDestinationLocation,
+            destinationAddress = destinationAddress
+        )
     }
 }
 
-// Helper function to get address from LatLng
-private suspend fun getAddressFromLatLng(context: Context, latLng: LatLng): String? {
-    return withContext(Dispatchers.IO) { // Perform geocoding on a background thread
+/**
+ * Helper function to get a human-readable address from LatLng coordinates using Android's Geocoder.
+ * This function is suspending and performs network operations on [Dispatchers.IO].
+ *
+ * @param context The current Android [Context], required for [Geocoder].
+ * @param latLng The [LatLng] coordinates for which to find the address.
+ * @return A [String] representing the address, or a fallback string if not found or an error occurs.
+ */
+private suspend fun getAddressFromLatLng(context: Context, latLng: LatLng): String {
+    return withContext(Dispatchers.IO) {
         val geocoder = Geocoder(context, Locale.getDefault())
         var addressText: String? = null
         try {
-            // For Android Tiramisu (API 33) and above, use the new asynchronous API
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
-                if (addresses?.isNotEmpty() == true) {
-                    addressText = addresses[0].getAddressLine(0)
-                }
+            @Suppress("DEPRECATION")
+            val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
             } else {
-                // For older versions, use the deprecated synchronous API
-                @Suppress("DEPRECATION")
-                val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
-                if (addresses?.isNotEmpty() == true) {
-                    addressText = addresses[0].getAddressLine(0)
-                }
+                geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
+            }
+            if (addresses?.isNotEmpty() == true) {
+                addressText = addresses[0].getAddressLine(0)
             }
         } catch (e: IOException) {
-            Log.e("BookRideOne", "Error getting address from LatLng", e)
-            addressText = "Could not find address" // Or null to show coordinates
+            Log.e("BookRideOne", "Error getting address from LatLng: ${e.message}")
         } catch (e: IllegalArgumentException) {
-            Log.e("BookRideOne", "Invalid LatLng passed to geocoder", e)
-            addressText = "Invalid location" // Or null
+            Log.e("BookRideOne", "Invalid LatLng passed to geocoder: ${e.message}")
         }
-        addressText
+        addressText ?: "Lat: %.5f, Lng: %.5f".format(latLng.latitude, latLng.longitude) // Fallback to coordinates
     }
 }
-
 
 /**
  * Displays the themed top bar for the "Book a Ride" screen.
@@ -126,14 +150,14 @@ fun TopBarBookRide() {
             .fillMaxWidth()
             .height(128.dp)
             .background(
-                color = Color.Red,
+                color = Color.Red, // Consider using Theme colors
                 shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
             ),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "Book a Ride",
-            color = Color.White,
+            color = Color.White, // Consider using Theme colors
             fontSize = 30.sp,
             fontWeight = FontWeight.Bold
         )
@@ -141,10 +165,22 @@ fun TopBarBookRide() {
 }
 
 /**
- * Composable for the main content area where users plan their ride.
+ * Composable for the main content area where users plan their ride, including pickup and destination.
+ *
+ * @param navController For navigating to location selection screens.
+ * @param selectedStartLocation The selected pickup [LatLng], or null.
+ * @param startAddress The address string for the pickup location, or null.
+ * @param selectedDestinationLocation The selected destination [LatLng], or null.
+ * @param destinationAddress The address string for the destination, or null.
  */
 @Composable
-fun RideBox(navController: NavController, selectedStartLocation: LatLng?, startAddress: String?){
+fun RideBox(
+    navController: NavController,
+    selectedStartLocation: LatLng?,
+    startAddress: String?,
+    selectedDestinationLocation: LatLng?,
+    destinationAddress: String?
+) {
     val cornerRadius = 24.dp
     val nestedBoxCornerRadius = 8.dp
 
@@ -162,74 +198,88 @@ fun RideBox(navController: NavController, selectedStartLocation: LatLng?, startA
                 shape = RoundedCornerShape(cornerRadius)
             )
             .padding(16.dp)
-    ){
+    ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = "Plan Your Ride",
                 color = Color.Black,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp) // Added padding
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(nestedBoxCornerRadius))
-                    .clickable { navController.navigate("book_ride_start") }
-                    .border(
-                        width = 1.dp,
-                        color = Color.Gray,
-                        shape = RoundedCornerShape(nestedBoxCornerRadius)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                val pickupText = when {
-                    !startAddress.isNullOrEmpty() -> startAddress
-                    selectedStartLocation != null -> "Lat: %.5f, Lng: %.5f".format(
-                        selectedStartLocation.latitude,
-                        selectedStartLocation.longitude
-                    )
-                    else -> "Tap to select pickup point"
-                }
-                Text(
-                    text = pickupText,
-                    fontSize = 16.sp,
-                    color = if (startAddress != null || selectedStartLocation != null) Color.Black else Color.Gray,
-                )
-            }
+            // Pickup Location Box
+            LocationDisplayBox(
+                text = startAddress ?: selectedStartLocation?.let { "Lat: %.5f, Lng: %.5f".format(it.latitude, it.longitude) } ?: "Tap to select pickup point",
+                isPlaceholder = startAddress.isNullOrEmpty() && selectedStartLocation == null,
+                onClick = { navController.navigate("book_ride_start") },
+                cornerRadius = nestedBoxCornerRadius
+            )
 
             Spacer(modifier = Modifier.height(4.dp))
-
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
-
             Spacer(modifier = Modifier.height(4.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(nestedBoxCornerRadius))
-                    .clickable { navController.navigate("book_ride_destination") }
-                    .border(
-                        width = 1.dp,
-                        color = Color.Gray,
-                        shape = RoundedCornerShape(nestedBoxCornerRadius)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
+            // Destination Location Box
+            LocationDisplayBox(
+                text = destinationAddress ?: selectedDestinationLocation?.let { "Lat: %.5f, Lng: %.5f".format(it.latitude, it.longitude) } ?: "Tap to select destination",
+                isPlaceholder = destinationAddress.isNullOrEmpty() && selectedDestinationLocation == null,
+                onClick = { navController.navigate("book_ride_destination") },
+                cornerRadius = nestedBoxCornerRadius
+            )
+
+            // Ride Summary Text for debugging/testing
+            /*
+            if (startAddress != null && destinationAddress != null) {
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Tap to select destination",
-                    fontSize = 16.sp,
-                    color = Color.Gray,
+                    text = "Ride from: $startAddress\nTo: $destinationAddress",
+                    fontSize = 14.sp,
+                    color = Color.DarkGray, // Consider using Theme colors
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
+            */
         }
+    }
+}
+
+/**
+ * A reusable composable for displaying a location (pickup or destination).
+ *
+ * @param text The text to display (address, coordinates, or placeholder).
+ * @param isPlaceholder True if the current text is a placeholder, to adjust text color.
+ * @param onClick Lambda to execute when the box is clicked.
+ * @param cornerRadius The corner radius for the box.
+ */
+@Composable
+private fun LocationDisplayBox(
+    text: String,
+    isPlaceholder: Boolean,
+    onClick: () -> Unit,
+    cornerRadius: Dp
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(cornerRadius))
+            .clickable(onClick = onClick)
+            .border(
+                width = 1.dp,
+                color = Color.Gray,
+                shape = RoundedCornerShape(cornerRadius)
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            text = text,
+            fontSize = 16.sp,
+            color = if (isPlaceholder) Color.Gray else Color.Black
+        )
     }
 }

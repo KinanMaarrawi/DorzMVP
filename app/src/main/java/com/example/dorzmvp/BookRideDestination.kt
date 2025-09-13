@@ -2,6 +2,7 @@ package com.example.dorzmvp
 
 import android.content.Context
 import android.location.Geocoder
+import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -53,78 +54,58 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-/** Default latitude and longitude, initially set to Dubai. Used to center the map when it first loads. */
-val DEFAULT_LOCATION = LatLng(25.2048, 55.2708) // Dubai
-
-/** Default zoom level for the map. */
-const val DEFAULT_ZOOM = 10f
+// DEFAULT_LOCATION and DEFAULT_ZOOM can be reused or defined specifically for destination context if needed.
+// For now, re-using the same constants from BookRideStartScreen for consistency.
+// This is essentially the same as the code in BookRideStart.kt, just changed to be for destination instead of pickup point
 
 /**
- * A Composable screen that allows the user to select a starting point for their ride.
- * It features a map by Google Map's API for visual selection, a search bar for finding locations via text input
- * using the Google Places API, and a confirmation button.
+ * A Composable screen that allows the user to select a destination for their ride.
+ * It mirrors the functionality of [BookRideStartScreen] but is contextually for choosing a destination.
+ * Features a map, a search bar (Places API), and a confirmation button.
  *
- * @param navController The [NavController] used for navigating back to the previous screen
- *                      after a location is selected and confirmed.
+ * @param navController The [NavController] used for navigating back, typically to [BookARideMainUI],
+ *                      after a destination is selected and confirmed.
  */
 @OptIn(ExperimentalMaterial3Api::class) // Required for TopAppBar usage.
 @Composable
-fun BookRideStartScreen(navController: NavController) {
-    // State for the currently selected latitude and longitude on the map.
+fun BookRideDestinationScreen(navController: NavController) {
     var selectedLatLng by remember { mutableStateOf<LatLng?>(null) }
-    // State for the display name (address or place name) of the selected location.
     var selectedPlaceDisplayName by remember { mutableStateOf<String?>(null) }
 
-    // State for managing the map's camera position (location, zoom, etc.).
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(DEFAULT_LOCATION, DEFAULT_ZOOM)
     }
-    // Configuration for Google Map's UI elements like zoom controls.
     val uiSettings by remember { mutableStateOf(MapUiSettings(zoomControlsEnabled = true)) }
-    // Configuration for Google Map's properties, e.g., enabling/disabling the "My Location" layer.
-    // isMyLocationEnabled is false as location selection is primarily via search or explicit map tap.
     val mapProperties by remember { mutableStateOf(MapProperties(isMyLocationEnabled = false)) }
 
-    // State for the user's current text input in the location search field.
     var searchQuery by remember { mutableStateOf("") }
-    // A mutable list to hold AutocompletePrediction objects received from the Places API.
     val predictions = remember { mutableStateListOf<AutocompletePrediction>() }
 
     val context = LocalContext.current
-    // Client for interacting with the Google Places API. Initialized once and remembered.
     val placesClient = remember { Places.createClient(context) }
-    // Coroutine scope for launching asynchronous operations like API calls and geocoding.
     val coroutineScope = rememberCoroutineScope()
 
-    /**
-     * A [LaunchedEffect] that observes changes in [searchQuery].
-     * When [searchQuery] has more than 2 characters, it triggers an autocomplete prediction request
-     * to the Places API. The results update the [predictions] list.
-     * For billing purposes and better user experience, a session token can be used with
-     * [FindAutocompletePredictionsRequest.Builder.setSessionToken].
-     */
     LaunchedEffect(searchQuery) {
-        if (searchQuery.length > 2) { // Start searching after a few characters.
+        if (searchQuery.length > 2) {
             val request = FindAutocompletePredictionsRequest.builder()
-                // Consider adding .setSessionToken(AutocompleteSessionToken.newInstance()) for Places API billing.
                 .setQuery(searchQuery)
                 .build()
             try {
-                val response = placesClient.findAutocompletePredictions(request).await() // Suspending API call.
+                val response = placesClient.findAutocompletePredictions(request).await()
                 predictions.clear()
                 predictions.addAll(response.autocompletePredictions)
             } catch (e: ApiException) {
-                Log.e("BookRideStart", "Place API Autocomplete error: ${e.statusCode}: ${e.statusMessage}")
-                predictions.clear() // Clear predictions on error.
+                Log.e("BookRideDestination", "Place API Autocomplete error: ${e.statusCode}: ${e.statusMessage}")
+                predictions.clear()
             }
         } else {
-            predictions.clear() // Clear predictions if the query is too short.
+            predictions.clear()
         }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Select Starting Point") })
+            TopAppBar(title = { Text("Select Destination") })
         }
     ) { paddingValues ->
         Column(
@@ -132,41 +113,37 @@ fun BookRideStartScreen(navController: NavController) {
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            // Text field for user to input their desired location for autocomplete search.
             TextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("Search for a location") },
+                label = { Text("Search for a destination") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp)
             )
 
-            // Displays the list of autocomplete predictions if any are available.
             if (predictions.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(0.5f) // Adjust weight to balance space between predictions and map.
+                        .weight(0.5f)
                 ) {
                     items(predictions) { prediction ->
                         Text(
                             text = prediction.getFullText(null).toString(),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { // When a prediction is tapped:
-                                    searchQuery = "" // Clear the search field.
-                                    predictions.clear() // Clear the predictions list.
-                                    // Fetch detailed information for the selected place.
-                                    fetchPlaceDetails(placesClient, prediction.placeId, context) { place ->
+                                .clickable {
+                                    searchQuery = ""
+                                    predictions.clear()
+                                    fetchPlaceDetails(placesClient, prediction.placeId, context) { place -> // Re-using fetchPlaceDetails
                                         place.latLng?.let { latLng ->
-                                            selectedLatLng = latLng // Update the selected coordinates.
-                                            selectedPlaceDisplayName = place.name ?: place.address // Update display name.
-                                            // Animate map camera to the newly selected location.
+                                            selectedLatLng = latLng
+                                            selectedPlaceDisplayName = place.name ?: place.address
                                             coroutineScope.launch {
                                                 cameraPositionState.animate(
-                                                    CameraUpdateFactory.newLatLngZoom(latLng, 15f), // Zoom closer.
-                                                    1000 // Animation duration in ms.
+                                                    CameraUpdateFactory.newLatLngZoom(latLng, 15f),
+                                                    1000
                                                 )
                                             }
                                         }
@@ -178,10 +155,9 @@ fun BookRideStartScreen(navController: NavController) {
                 }
             }
 
-            // Box container for the Google Map.
             Box(
                 modifier = Modifier
-                    .weight(1f) // Map takes up the remaining vertical space.
+                    .weight(1f)
                     .fillMaxWidth()
             ) {
                 GoogleMap(
@@ -189,128 +165,109 @@ fun BookRideStartScreen(navController: NavController) {
                     cameraPositionState = cameraPositionState,
                     properties = mapProperties,
                     uiSettings = uiSettings,
-                    // Handles map tap events for direct location selection.
                     onMapClick = { latLng ->
-                        selectedLatLng = latLng // Update coordinates immediately.
-                        selectedPlaceDisplayName = "Fetching address..." // Placeholder while geocoding.
-                        // Launch a coroutine to perform reverse geocoding.
+                        selectedLatLng = latLng
+                        selectedPlaceDisplayName = "Fetching address..."
                         coroutineScope.launch {
+                            // Re-using getAddressFromMapTap
                             val address = getAddressFromMapTap(context, latLng)
-                            selectedPlaceDisplayName = address ?: "Unknown location"
+                            selectedPlaceDisplayName = address
                         }
-                        Log.d("MapClick", "Map tapped. Selected: $latLng")
+                        Log.d("BookRideDestination", "Map tapped. Selected: $latLng")
                     }
                 ) {
-                    // Displays a marker on the map at the currently selected location.
                     selectedLatLng?.let { location ->
                         Marker(
                             state = MarkerState(position = location),
-                            title = selectedPlaceDisplayName ?: "Starting Point", // Use display name or default.
-                            snippet = selectedPlaceDisplayName ?: "Lat: ${location.latitude}, Lng: ${location.longitude}" // Snippet also uses display name or coordinates.
+                            title = selectedPlaceDisplayName ?: "Destination", // Changed default title
+                            snippet = selectedPlaceDisplayName ?: "Lat: ${location.latitude}, Lng: ${location.longitude}"
                         )
                     }
                 }
             }
 
-            // Section at the bottom to display selected location information and the confirmation button.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Display selected location: prefers display name, falls back to LatLng, then to prompt.
                 val (displayText, isLocationSelected) = when {
                     selectedPlaceDisplayName != null -> selectedPlaceDisplayName to true
                     selectedLatLng != null -> "Lat: %.5f, Lng: %.5f".format(selectedLatLng!!.latitude, selectedLatLng!!.longitude) to true
-                    else -> "Tap on the map or search to select a starting point." to false
+                    else -> "Tap on the map or search to select a destination." to false
                 }
                 Text(
                     text = "Selected: $displayText",
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                // Button to confirm the selected location and navigate back.
                 Button(
                     onClick = {
-                        selectedLatLng?.let { startLocation ->
-                            Log.i("BookRideStart", "Confirmed starting point: $startLocation, Name: $selectedPlaceDisplayName")
-                            // Pass the selected LatLng back to the previous screen using SavedStateHandle.
-                            navController.previousBackStackEntry?.savedStateHandle?.set("selectedStartLocation", startLocation)
-                            // Optionally, pass the display name back if the previous screen needs it directly:
-                            // navController.previousBackStackEntry?.savedStateHandle?.set("selectedStartLocationName", selectedPlaceDisplayName)
-                            navController.popBackStack() // Navigate back.
+                        selectedLatLng?.let { destinationLocation ->
+                            Log.i("BookRideDestination", "Confirmed destination: $destinationLocation, Name: $selectedPlaceDisplayName")
+                            navController.previousBackStackEntry?.savedStateHandle?.set("selectedDestinationLocation", destinationLocation)
+                            // Optionally, pass the display name back:
+                            // navController.previousBackStackEntry?.savedStateHandle?.set("selectedDestinationLocationName", selectedPlaceDisplayName)
+                            navController.popBackStack()
                         }
                     },
-                    enabled = isLocationSelected, // Enable button only if a location has been selected.
+                    enabled = isLocationSelected,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Confirm Starting Point")
+                    Text("Confirm Destination") // Changed button text
                 }
             }
         }
     }
 }
 
+// Note: fetchPlaceDetails and getAddressFromMapTap are identical to those in BookRideStart.kt.
+// They could be moved to a common utility file if desired, but for now, they are duplicated for simplicity.
+// Consider them as private utility functions for this specific screen's implementation.
+
 /**
  * Fetches detailed information for a place given its ID using the Google Places API.
- *
- * @param placesClient The [PlacesClient] instance to use for API calls.
- * @param placeId The unique identifier of the place to fetch details for.
- * @param context The current Android [Context], needed for Places API operations.
- * @param onPlaceFetched A callback function invoked with the fetched [Place] object upon success.
  */
 private fun fetchPlaceDetails(
     placesClient: PlacesClient,
     placeId: String,
-    context: Context, // Though context is not directly used here, it's often kept for consistency or future use.
+    context: Context,
     onPlaceFetched: (Place) -> Unit
 ) {
-    // Define which place fields are required (e.g., ID, name, LatLng, address).
     val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG, Place.Field.ADDRESS)
     val request = FetchPlaceRequest.builder(placeId, placeFields).build()
 
     placesClient.fetchPlace(request)
         .addOnSuccessListener { response ->
             val place = response.place
-            Log.i("BookRideStart", "Place details fetched: ${place.name ?: "Unknown name"}")
-            onPlaceFetched(place) // Pass the fetched Place object to the callback.
+            Log.i("BookRideDestination", "Place details fetched: ${place.name ?: "Unknown name"}") // Log context updated
+            onPlaceFetched(place)
         }
         .addOnFailureListener { exception ->
             if (exception is ApiException) {
-                Log.e("BookRideStart", "Place details fetch error: ${exception.statusCode}: ${exception.statusMessage}")
+                Log.e("BookRideDestination", "Place details fetch error: ${exception.statusCode}: ${exception.statusMessage}") // Log context updated
             }
         }
 }
 
 /**
  * Helper function to get a human-readable address from LatLng coordinates using Android's [Geocoder].
- * This is intended for use when a user taps directly on the map.
- * Performs geocoding on a background thread using [Dispatchers.IO].
- *
- * @param context The current Android [Context], required for [Geocoder].
- * @param latLng The [LatLng] coordinates for which to find the address.
- * @return A [String] representing the address, or a fallback string if not found or an error occurs.
  */
 private suspend fun getAddressFromMapTap(context: Context, latLng: LatLng): String {
-    return withContext(Dispatchers.IO) { // Perform geocoding on a background thread.
+    return withContext(Dispatchers.IO) {
         val geocoder = Geocoder(context, Locale.getDefault())
         var addressText: String? = null
         try {
-            // The Geocoder.getFromLocation API with a listener (for API 33+) is not used here
-            // to keep the suspend function straightforward. Instead, the older synchronous (but deprecated)
-            // version is called on a background thread, which is a common pattern.
             @Suppress("DEPRECATION")
             val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
             if (addresses?.isNotEmpty() == true) {
-                addressText = addresses[0].getAddressLine(0) // Use the first address line.
+                addressText = addresses[0].getAddressLine(0)
             }
         } catch (e: IOException) {
-            Log.e("BookRideStart", "Error getting address from map tap: ${e.message}")
-            // Potentially network error or no geocoder backend available.
+            Log.e("BookRideDestination", "Error getting address from map tap: ${e.message}") // Log context updated
         } catch (e: IllegalArgumentException) {
-            Log.e("BookRideStart", "Invalid LatLng passed to geocoder for map tap: ${e.message}")
-            // Should not happen if LatLng is valid.
+            Log.e("BookRideDestination", "Invalid LatLng passed to geocoder for map tap: ${e.message}") // Log context updated
         }
         addressText ?: "Unknown location near %.5f, %.5f".format(latLng.latitude, latLng.longitude)
     }

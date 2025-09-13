@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
 
                 // Defines the "book_ride_destination" destination - for selecting the ride destination.
                 composable("book_ride_destination"){
-                    /* TODO: Implement the UI for selecting the destination of the ride. */
+                    BookRideDestinationScreen(navController) // Composable for selecting the destination point.
                 }
 
                 // Defines the "book_ride_two" destination - potentially for further ride details or confirmation.
