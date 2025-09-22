@@ -1,15 +1,20 @@
 package com.example.dorzmvp
 
+import android.app.Application
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.dorzmvp.ui.theme.DorzMVPTheme
+import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
+import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModelFactory
 import com.google.android.libraries.places.api.Places
 
 /**
@@ -50,6 +55,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             // rememberNavController creates and remembers a NavController across recompositions.
             val navController = rememberNavController()
+            val context = LocalContext.current
+            val savedAddressViewModel: SavedAddressViewModel = ViewModelProvider(
+                this,
+                SavedAddressViewModelFactory(context.applicationContext as Application)
+            )[SavedAddressViewModel::class.java]
+
             // NavHost is a container that displays different composable destinations based on the current route.
             NavHost(navController = navController, startDestination = "home_screen", builder = {
                 // Defines the "home_screen" destination.
@@ -63,12 +74,12 @@ class MainActivity : ComponentActivity() {
 
                 // Defines the "book_ride_start" destination - for selecting pickup location.
                 composable("book_ride_start"){
-                    BookRideStartScreen(navController) // Composable for selecting the start point.
+                    BookRideStartScreen(navController, savedAddressViewModel) // Composable for selecting the start point.
                 }
 
                 // Defines the "book_ride_destination" destination - for selecting the ride destination.
                 composable("book_ride_destination"){
-                    BookRideDestinationScreen(navController) // Composable for selecting the destination point.
+                    BookRideDestinationScreen(navController, savedAddressViewModel) // Composable for selecting the destination point.
                 }
 
                 // Defines the "book_ride_two" destination - potentially for further ride details or confirmation.
@@ -93,11 +104,15 @@ class MainActivity : ComponentActivity() {
 
                 // Defines the "saved_addresses" destination.
                 composable("saved_addresses"){
-                    /* TODO: Implement the UI for displaying and managing saved addresses. */
+                    SavedAddressesScreen(navController, savedAddressViewModel)
                 }
                 // Defines the "last_ride" destination - to show details of the user's previous ride.
                 composable("last_ride"){
                     /* TODO: Implement the UI to display details of the last ride. */
+                }
+                // Defines the route for picking a location for a saved address
+                composable("pick_location_for_saved_address_route") {
+                    PickLocationScreen(navController, resultKey = "pickedLocationForSavedAddress")
                 }
             } )
         }

@@ -4,30 +4,23 @@ import android.content.Context
 import android.location.Geocoder
 import android.util.Log
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,10 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
-import com.example.dorzmvp.db.SavedAddress
-import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -65,17 +55,16 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-/** Default latitude and longitude, initially set to Dubai. Used to center the map when it first loads. */
-val DEFAULT_LOCATION = LatLng(25.2048, 55.2708) // Dubai
-
-/** Default zoom level for the map. */
-const val DEFAULT_ZOOM = 10f
+// DEFAULT_LOCATION and DEFAULT_ZOOM can be reused or defined specifically if needed.
+// For now, re-using the same constants from BookRideStartScreen for consistency.
+// val DEFAULT_LOCATION = LatLng(25.2048, 55.2708) // Dubai
+// const val DEFAULT_ZOOM = 10f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookRideStartScreen(
+fun PickLocationScreen(
     navController: NavController,
-    savedAddressViewModel: SavedAddressViewModel
+    resultKey: String // Key to pass the LatLng result back
 ) {
     var selectedLatLng by remember { mutableStateOf<LatLng?>(null) }
     var selectedPlaceDisplayName by remember { mutableStateOf<String?>(null) }
@@ -93,9 +82,6 @@ fun BookRideStartScreen(
     val placesClient = remember { Places.createClient(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    var showSavedAddressesDialog by remember { mutableStateOf(false) }
-    val savedAddresses by savedAddressViewModel.savedAddresses.collectAsState()
-
     LaunchedEffect(searchQuery) {
         if (searchQuery.length > 2) {
             val request = FindAutocompletePredictionsRequest.builder()
@@ -106,7 +92,7 @@ fun BookRideStartScreen(
                 predictions.clear()
                 predictions.addAll(response.autocompletePredictions)
             } catch (e: ApiException) {
-                Log.e("BookRideStart", "Place API Autocomplete error: ${e.statusCode}: ${e.statusMessage}")
+                Log.e("PickLocationScreen", "Place API Autocomplete error: ${e.statusCode}: ${e.statusMessage}")
                 predictions.clear()
             }
         } else {
@@ -114,49 +100,10 @@ fun BookRideStartScreen(
         }
     }
 
-    if (showSavedAddressesDialog) {
-        AlertDialog(
-            onDismissRequest = { showSavedAddressesDialog = false },
-            title = { Text("Select a Saved Address") },
-            text = {
-                if (savedAddresses.isEmpty()) {
-                    Text("You have no saved addresses yet.")
-                } else {
-                    LazyColumn {
-                        items(savedAddresses) { address ->
-                            Text(
-                                text = "${address.name} - ${address.address}",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedLatLng = LatLng(address.latitude, address.longitude)
-                                        selectedPlaceDisplayName = address.name // Or address.address
-                                        coroutineScope.launch {
-                                            cameraPositionState.animate(
-                                                CameraUpdateFactory.newLatLngZoom(selectedLatLng!!, 15f),
-                                                1000
-                                            )
-                                        }
-                                        showSavedAddressesDialog = false
-                                    }
-                                    .padding(vertical = 8.dp)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showSavedAddressesDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Select Starting Point") },
+                title = { Text("Pick Location") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.primary,
@@ -177,20 +124,12 @@ fun BookRideStartScreen(
                     .fillMaxWidth()
                     .padding(8.dp)
             )
-            Button(
-                onClick = { showSavedAddressesDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text("Use Saved Address")
-            }
 
             if (predictions.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(0.5f)
+                        .weight(0.5f) 
                 ) {
                     items(predictions) { prediction ->
                         Text(
@@ -200,7 +139,7 @@ fun BookRideStartScreen(
                                 .clickable {
                                     searchQuery = ""
                                     predictions.clear()
-                                    fetchPlaceDetails(placesClient, prediction.placeId) { place ->
+                                    fetchPlaceDetailsForPicker(placesClient, prediction.placeId) { place ->
                                         place.latLng?.let {
                                             selectedLatLng = it
                                             selectedPlaceDisplayName = place.name ?: place.address
@@ -233,16 +172,16 @@ fun BookRideStartScreen(
                         selectedLatLng = latLng
                         selectedPlaceDisplayName = "Fetching address..."
                         coroutineScope.launch {
-                            val address = getAddressFromMapTap(context, latLng)
+                            val address = getAddressFromMapTapForPicker(context, latLng)
                             selectedPlaceDisplayName = address ?: "Unknown location"
                         }
-                        Log.d("MapClick", "Map tapped. Selected: $latLng")
+                        Log.d("PickLocationScreen", "Map tapped. Selected: $latLng")
                     }
                 ) {
                     selectedLatLng?.let { location ->
                         Marker(
                             state = MarkerState(position = location),
-                            title = selectedPlaceDisplayName ?: "Starting Point",
+                            title = selectedPlaceDisplayName ?: "Selected Location",
                             snippet = selectedPlaceDisplayName ?: "Lat: ${location.latitude}, Lng: ${location.longitude}"
                         )
                     }
@@ -258,7 +197,7 @@ fun BookRideStartScreen(
                 val (displayText, isLocationSelected) = when {
                     selectedPlaceDisplayName != null -> selectedPlaceDisplayName to true
                     selectedLatLng != null -> "Lat: %.5f, Lng: %.5f".format(Locale.US, selectedLatLng!!.latitude, selectedLatLng!!.longitude) to true
-                    else -> "Tap on the map or search to select a starting point." to false
+                    else -> "Tap on the map or search to select a location." to false
                 }
                 Text(
                     text = "Selected: $displayText",
@@ -267,23 +206,23 @@ fun BookRideStartScreen(
 
                 Button(
                     onClick = {
-                        selectedLatLng?.let { startLocation ->
-                            Log.i("BookRideStart", "Confirmed starting point: $startLocation, Name: $selectedPlaceDisplayName")
-                            navController.previousBackStackEntry?.savedStateHandle?.set("selectedStartLocation", startLocation)
+                        selectedLatLng?.let {
+                            Log.i("PickLocationScreen", "Confirmed location: $it, Name: $selectedPlaceDisplayName for key $resultKey")
+                            navController.previousBackStackEntry?.savedStateHandle?.set(resultKey, it)
                             navController.popBackStack()
                         }
                     },
                     enabled = isLocationSelected,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Confirm Starting Point")
+                    Text("Confirm Location")
                 }
             }
         }
     }
 }
 
-private fun fetchPlaceDetails(
+private fun fetchPlaceDetailsForPicker(
     placesClient: PlacesClient,
     placeId: String,
     onPlaceFetched: (Place) -> Unit
@@ -294,17 +233,17 @@ private fun fetchPlaceDetails(
     placesClient.fetchPlace(request)
         .addOnSuccessListener { response ->
             val place = response.place
-            Log.i("BookRideStart", "Place details fetched: ${place.name ?: "Unknown name"}")
+            Log.i("PickLocationScreen", "Place details fetched: ${place.name ?: "Unknown name"}")
             onPlaceFetched(place)
         }
         .addOnFailureListener { exception ->
             if (exception is ApiException) {
-                Log.e("BookRideStart", "Place details fetch error: ${exception.statusCode}: ${exception.statusMessage}")
+                Log.e("PickLocationScreen", "Place details fetch error: ${exception.statusCode}: ${exception.statusMessage}")
             }
         }
 }
 
-private suspend fun getAddressFromMapTap(context: Context, latLng: LatLng): String {
+private suspend fun getAddressFromMapTapForPicker(context: Context, latLng: LatLng): String? {
     return withContext(Dispatchers.IO) {
         val geocoder = Geocoder(context, Locale.getDefault())
         var addressText: String? = null
@@ -315,10 +254,9 @@ private suspend fun getAddressFromMapTap(context: Context, latLng: LatLng): Stri
                 addressText = addresses[0].getAddressLine(0)
             }
         } catch (e: IOException) {
-            Log.e("BookRideStart", "Error getting address from map tap: ${e.message}")
-        } catch (e: IllegalArgumentException) {
-            Log.e("BookRideStart", "Invalid LatLng passed to geocoder for map tap: ${e.message}")
+            Log.e("PickLocationScreen", "Error in getAddressFromMapTapForPicker (Geocoder): ${e.message}")
         }
-        addressText ?: "Unknown location near %.5f, %.5f".format(Locale.US, latLng.latitude, latLng.longitude)
+        addressText
     }
 }
+

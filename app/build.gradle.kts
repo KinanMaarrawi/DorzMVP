@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
+    alias(libs.plugins.google.ksp)
 }
 
 // Configure the secrets plugin extension at the top level
@@ -165,4 +166,9 @@ dependencies {
             because("Guava already includes ListenableFuture, and this special version is empty and resolves conflicts.")
         }
     }
+
+    // Room Database
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 }

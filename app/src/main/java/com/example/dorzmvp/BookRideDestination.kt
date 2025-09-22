@@ -2,7 +2,6 @@ package com.example.dorzmvp
 
 import android.content.Context
 import android.location.Geocoder
-import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -12,14 +11,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -54,21 +59,12 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-// DEFAULT_LOCATION and DEFAULT_ZOOM can be reused or defined specifically for destination context if needed.
-// For now, re-using the same constants from BookRideStartScreen for consistency.
-// This is essentially the same as the code in BookRideStart.kt, just changed to be for destination instead of pickup point
-
-/**
- * A Composable screen that allows the user to select a destination for their ride.
- * It mirrors the functionality of [BookRideStartScreen] but is contextually for choosing a destination.
- * Features a map, a search bar (Places API), and a confirmation button.
- *
- * @param navController The [NavController] used for navigating back, typically to [BookARideMainUI],
- *                      after a destination is selected and confirmed.
- */
-@OptIn(ExperimentalMaterial3Api::class) // Required for TopAppBar usage.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookRideDestinationScreen(navController: NavController) {
+fun BookRideDestinationScreen(
+    navController: NavController,
+    savedAddressViewModel: SavedAddressViewModel
+) {
     var selectedLatLng by remember { mutableStateOf<LatLng?>(null) }
     var selectedPlaceDisplayName by remember { mutableStateOf<String?>(null) }
 
@@ -84,6 +80,9 @@ fun BookRideDestinationScreen(navController: NavController) {
     val context = LocalContext.current
     val placesClient = remember { Places.createClient(context) }
     val coroutineScope = rememberCoroutineScope()
+
+    var showSavedAddressesDialog by remember { mutableStateOf(false) }
+    val savedAddresses by savedAddressViewModel.savedAddresses.collectAsState()
 
     LaunchedEffect(searchQuery) {
         if (searchQuery.length > 2) {
@@ -103,9 +102,54 @@ fun BookRideDestinationScreen(navController: NavController) {
         }
     }
 
+    if (showSavedAddressesDialog) {
+        AlertDialog(
+            onDismissRequest = { showSavedAddressesDialog = false },
+            title = { Text("Select a Saved Address") },
+            text = {
+                if (savedAddresses.isEmpty()) {
+                    Text("You have no saved addresses yet.")
+                } else {
+                    LazyColumn {
+                        items(savedAddresses) { address ->
+                            Text(
+                                text = "${address.name} - ${address.address}",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedLatLng = LatLng(address.latitude, address.longitude)
+                                        selectedPlaceDisplayName = address.name // Or address.address
+                                        coroutineScope.launch {
+                                            cameraPositionState.animate(
+                                                CameraUpdateFactory.newLatLngZoom(selectedLatLng!!, 15f),
+                                                1000
+                                            )
+                                        }
+                                        showSavedAddressesDialog = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSavedAddressesDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Select Destination") })
+            TopAppBar(
+                title = { Text("Select Destination") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.primary,
+                )
+            )
         }
     ) { paddingValues ->
         Column(
@@ -121,6 +165,14 @@ fun BookRideDestinationScreen(navController: NavController) {
                     .fillMaxWidth()
                     .padding(8.dp)
             )
+            Button(
+                onClick = { showSavedAddressesDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text("Use Saved Address")
+            }
 
             if (predictions.isNotEmpty()) {
                 LazyColumn(
@@ -136,7 +188,7 @@ fun BookRideDestinationScreen(navController: NavController) {
                                 .clickable {
                                     searchQuery = ""
                                     predictions.clear()
-                                    fetchPlaceDetails(placesClient, prediction.placeId, context) { place -> // Re-using fetchPlaceDetails
+                                    fetchPlaceDetails(placesClient, prediction.placeId, context) { place ->
                                         place.latLng?.let { latLng ->
                                             selectedLatLng = latLng
                                             selectedPlaceDisplayName = place.name ?: place.address
@@ -169,7 +221,6 @@ fun BookRideDestinationScreen(navController: NavController) {
                         selectedLatLng = latLng
                         selectedPlaceDisplayName = "Fetching address..."
                         coroutineScope.launch {
-                            // Re-using getAddressFromMapTap
                             val address = getAddressFromMapTap(context, latLng)
                             selectedPlaceDisplayName = address
                         }
@@ -179,7 +230,7 @@ fun BookRideDestinationScreen(navController: NavController) {
                     selectedLatLng?.let { location ->
                         Marker(
                             state = MarkerState(position = location),
-                            title = selectedPlaceDisplayName ?: "Destination", // Changed default title
+                            title = selectedPlaceDisplayName ?: "Destination",
                             snippet = selectedPlaceDisplayName ?: "Lat: ${location.latitude}, Lng: ${location.longitude}"
                         )
                     }
@@ -194,7 +245,7 @@ fun BookRideDestinationScreen(navController: NavController) {
             ) {
                 val (displayText, isLocationSelected) = when {
                     selectedPlaceDisplayName != null -> selectedPlaceDisplayName to true
-                    selectedLatLng != null -> "Lat: %.5f, Lng: %.5f".format(selectedLatLng!!.latitude, selectedLatLng!!.longitude) to true
+                    selectedLatLng != null -> "Lat: %.5f, Lng: %.5f".format(Locale.US, selectedLatLng!!.latitude, selectedLatLng!!.longitude) to true
                     else -> "Tap on the map or search to select a destination." to false
                 }
                 Text(
@@ -207,28 +258,19 @@ fun BookRideDestinationScreen(navController: NavController) {
                         selectedLatLng?.let { destinationLocation ->
                             Log.i("BookRideDestination", "Confirmed destination: $destinationLocation, Name: $selectedPlaceDisplayName")
                             navController.previousBackStackEntry?.savedStateHandle?.set("selectedDestinationLocation", destinationLocation)
-                            // Optionally, pass the display name back:
-                            // navController.previousBackStackEntry?.savedStateHandle?.set("selectedDestinationLocationName", selectedPlaceDisplayName)
                             navController.popBackStack()
                         }
                     },
                     enabled = isLocationSelected,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Confirm Destination") // Changed button text
+                    Text("Confirm Destination")
                 }
             }
         }
     }
 }
 
-// Note: fetchPlaceDetails and getAddressFromMapTap are identical to those in BookRideStart.kt.
-// They could be moved to a common utility file if desired, but for now, they are duplicated for simplicity.
-// Consider them as private utility functions for this specific screen's implementation.
-
-/**
- * Fetches detailed information for a place given its ID using the Google Places API.
- */
 private fun fetchPlaceDetails(
     placesClient: PlacesClient,
     placeId: String,
@@ -241,19 +283,16 @@ private fun fetchPlaceDetails(
     placesClient.fetchPlace(request)
         .addOnSuccessListener { response ->
             val place = response.place
-            Log.i("BookRideDestination", "Place details fetched: ${place.name ?: "Unknown name"}") // Log context updated
+            Log.i("BookRideDestination", "Place details fetched: ${place.name ?: "Unknown name"}")
             onPlaceFetched(place)
         }
         .addOnFailureListener { exception ->
             if (exception is ApiException) {
-                Log.e("BookRideDestination", "Place details fetch error: ${exception.statusCode}: ${exception.statusMessage}") // Log context updated
+                Log.e("BookRideDestination", "Place details fetch error: ${exception.statusCode}: ${exception.statusMessage}")
             }
         }
 }
 
-/**
- * Helper function to get a human-readable address from LatLng coordinates using Android's [Geocoder].
- */
 private suspend fun getAddressFromMapTap(context: Context, latLng: LatLng): String {
     return withContext(Dispatchers.IO) {
         val geocoder = Geocoder(context, Locale.getDefault())
@@ -265,10 +304,10 @@ private suspend fun getAddressFromMapTap(context: Context, latLng: LatLng): Stri
                 addressText = addresses[0].getAddressLine(0)
             }
         } catch (e: IOException) {
-            Log.e("BookRideDestination", "Error getting address from map tap: ${e.message}") // Log context updated
+            Log.e("BookRideDestination", "Error getting address from map tap: ${e.message}")
         } catch (e: IllegalArgumentException) {
-            Log.e("BookRideDestination", "Invalid LatLng passed to geocoder for map tap: ${e.message}") // Log context updated
+            Log.e("BookRideDestination", "Invalid LatLng passed to geocoder for map tap: ${e.message}")
         }
-        addressText ?: "Unknown location near %.5f, %.5f".format(latLng.latitude, latLng.longitude)
+        addressText ?: "Unknown location near %.5f, %.5f".format(Locale.US, latLng.latitude, latLng.longitude)
     }
 }
