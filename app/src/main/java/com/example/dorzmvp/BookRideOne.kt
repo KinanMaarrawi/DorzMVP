@@ -453,7 +453,7 @@ private fun extractLatLngFromUrlString(decodedUrl: String): LatLng? {
                     // or if the original query string had mixed encoding.
                     val key = try { URLDecoder.decode(keyValue[0], "UTF-8").lowercase(Locale.US) } catch (e: Exception) { keyValue[0].lowercase(Locale.US) }
                     val value = try { URLDecoder.decode(keyValue[1], "UTF-8") } catch (e: Exception) { keyValue[1] }
-                    
+
                     if (key == "q" || key == "query" || key == "ll") {
                         parseCoordinatesFromText(value)?.let {
                             Log.d(TAG_LINK_PARSING, "Coordinates parsed from query param '$key' => $it")
@@ -472,10 +472,10 @@ private fun extractLatLngFromUrlString(decodedUrl: String): LatLng? {
     // This pattern is common for specific point-of-interest URLs.
     try {
         // Use rawPath if URI is available, otherwise fall back to the whole decodedUrl for matching.
-        val pathToSearch = uri?.rawPath ?: decodedUrl 
-        // Regex: @<latitude>,<longitude> followed by a comma, slash, or end of string.
+        val pathToSearch = uri?.rawPath ?: decodedUrl
+        // Regex: /@<latitude>,<longitude> followed by a comma, slash, or end of string / other path components.
         // Latitude/Longitude: optional sign, digits, optional decimal part.
-        val atPattern = Pattern.compile("@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,|/|${'$'})")
+        val atPattern = Pattern.compile("/@([-+]?\\d{1,3}(?:\\.\\d+)?),([-+]?\\d{1,3}(?:\\.\\d+)?)(?:,[^/]*)?/")
         val atMatcher = atPattern.matcher(pathToSearch)
         if (atMatcher.find()) {
             val lat = atMatcher.group(1)?.toDoubleOrNull() // Safe toDouble: returns null on parse error.
@@ -494,7 +494,7 @@ private fun extractLatLngFromUrlString(decodedUrl: String): LatLng? {
     try {
         // Regex: !3d<latitude>!4d<longitude>
         // Latitude/Longitude: optional sign, digits, optional decimal part.
-        val threeFourDPattern = Pattern.compile("!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)")
+        val threeFourDPattern = Pattern.compile("!3d([-+]?\\d+\\.?\\d*)!4d([-+]?\\d+\\.?\\d*)")
         val matcher = threeFourDPattern.matcher(decodedUrl) // Search the entire decoded URL string.
         if (matcher.find()) {
             val lat = matcher.group(1)?.toDoubleOrNull()
@@ -540,9 +540,10 @@ private fun extractLatLngFromUrlString(decodedUrl: String): LatLng? {
 private fun parseCoordinatesFromText(text: String): LatLng? {
     // Regex to find two numbers separated by comma and/or space.
     // It expects up to 3 digits for the integer part of lat/lng (e.g., 180.000, -90.000).
-    val coordPattern = Pattern.compile("([-+]?\d{1,3}(?:\.\d+)?)[,\s]+([-+]?\d{1,3}(?:\.\d+)?)")
+    // Corrected regex for latitude and longitude pairs:
+    val coordPattern = Pattern.compile("([-+]?\\d{1,3}(?:\\.\\d+)?)[,\\s]+([-+]?\\d{1,3}(?:\\.\\d+)?)")
     val matcher = coordPattern.matcher(text)
-    
+
     // Iterate through all matches found by the regex in the text.
     while (matcher.find()) {
         try {
