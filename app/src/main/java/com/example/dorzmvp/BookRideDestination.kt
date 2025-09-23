@@ -13,6 +13,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults // Added import
+import androidx.compose.material3.Card // Added import
+import androidx.compose.material3.CardDefaults // Added import
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -32,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color // Added import
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -105,17 +109,17 @@ fun BookRideDestinationScreen(
     if (showSavedAddressesDialog) {
         AlertDialog(
             onDismissRequest = { showSavedAddressesDialog = false },
-            title = { Text("Select a Saved Address") },
+            title = { Text("Select a Saved Address", color = Color(0xFFD32F2F)) },
             text = {
                 if (savedAddresses.isEmpty()) {
                     Text("You have no saved addresses yet.")
                 } else {
                     LazyColumn {
                         items(savedAddresses) { address ->
-                            Text(
-                                text = "${address.name} - ${address.address}",
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
                                     .clickable {
                                         selectedLatLng = LatLng(address.latitude, address.longitude)
                                         selectedPlaceDisplayName = address.name // Or address.address
@@ -126,16 +130,23 @@ fun BookRideDestinationScreen(
                                             )
                                         }
                                         showSavedAddressesDialog = false
-                                    }
-                                    .padding(vertical = 8.dp)
-                            )
+                                    },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Text(
+                                    text = "${address.name} - ${address.address}",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                )
+                            }
                         }
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showSavedAddressesDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = Color(0xFFD32F2F))
                 }
             }
         )
@@ -146,8 +157,8 @@ fun BookRideDestinationScreen(
             TopAppBar(
                 title = { Text("Select Destination") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
+                    containerColor = Color(0xFFD32F2F), // Material Red 700
+                    titleContentColor = Color.White
                 )
             )
         }
@@ -169,7 +180,11 @@ fun BookRideDestinationScreen(
                 onClick = { showSavedAddressesDialog = true },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFD32F2F),
+                    contentColor = Color.White
+                )
             ) {
                 Text("Use Saved Address")
             }
@@ -274,7 +289,7 @@ fun BookRideDestinationScreen(
 private fun fetchPlaceDetails(
     placesClient: PlacesClient,
     placeId: String,
-    context: Context,
+    context: Context, // Added context parameter, which was missing in the original provided code
     onPlaceFetched: (Place) -> Unit
 ) {
     val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG, Place.Field.ADDRESS)
