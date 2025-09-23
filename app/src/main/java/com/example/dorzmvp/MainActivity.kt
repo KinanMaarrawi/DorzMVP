@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+// import com.example.dorzmvp.YourRidesScreen // Assuming YourRidesScreen is in the same package
 import com.example.dorzmvp.ui.theme.DorzMVPTheme
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModelFactory
@@ -106,9 +107,9 @@ class MainActivity : ComponentActivity() {
                 composable("saved_addresses"){
                     SavedAddressesScreen(navController, savedAddressViewModel)
                 }
-                // Defines the "last_ride" destination - to show details of the user's previous ride.
-                composable("last_ride"){
-                    /* TODO: Implement the UI to display details of the last ride. */
+                // Defines the "your_rides" destination - to show details of the user's previous ride.
+                composable("your_rides"){
+                    YourRidesScreen(navController) // Navigates to your new screen
                 }
                 // Defines the route for picking a location for a saved address
                 composable("pick_location_for_saved_address_route") {

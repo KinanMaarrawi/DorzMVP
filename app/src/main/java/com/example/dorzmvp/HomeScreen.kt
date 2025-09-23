@@ -144,9 +144,9 @@ fun TaxiMenu(navController: NavController) {
                 item {
                     TaxiMenuElement(
                         imageVector = Icons.Default.Favorite, // Icon for "Last Ride".
-                        text = "Last Ride",
+                        text = "Your Rides",
                         onClick = {
-                            navController.navigate("last_ride") // Navigate to the "last_ride" screen on click.
+                            navController.navigate("your_rides") // Navigate to the "your_rides" screen on click.
                         }
                     )
                 }
