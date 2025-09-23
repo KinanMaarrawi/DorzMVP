@@ -65,7 +65,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add // Ensured correct Icon
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -843,7 +842,7 @@ fun RideBox(
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = onPasteStartLocation) {
                     Icon(
-                        imageVector = Icons.Filled.Add, // Ensured correct Icon
+                        painter = painterResource(id = R.drawable.paste),
                         contentDescription = "Paste Start Location"
                     )
                 }
@@ -873,7 +872,7 @@ fun RideBox(
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = onPasteDestinationLocation) {
                     Icon(
-                        imageVector = Icons.Filled.Add, // Ensured correct Icon
+                        painter = painterResource(id = R.drawable.paste),
                         contentDescription = "Paste Destination Location"
                     )
                 }

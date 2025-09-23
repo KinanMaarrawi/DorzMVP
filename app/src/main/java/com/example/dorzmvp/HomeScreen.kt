@@ -18,9 +18,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.Favorite
+// import androidx.compose.material.icons.filled.Add // Not used directly in this file after refactor
+// import androidx.compose.material.icons.filled.Done // Not used
+// import androidx.compose.material.icons.filled.Favorite // Not used
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -30,7 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.ImageVector // Still used by TopBar
+import androidx.compose.ui.graphics.painter.Painter // Added for TaxiMenuElement
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -134,7 +136,7 @@ fun TaxiMenu(navController: NavController) {
             ) {
                 item { // Defines a single item in the LazyRow.
                     TaxiMenuElement(
-                        imageVector = Icons.Default.Done, // Icon for "Instant Ride".
+                        painter = painterResource(id = R.drawable.hail),
                         text = "Instant Ride",
                         onClick = {
                             navController.navigate("book_ride_one") // Navigate to the "book_ride_one" screen on click.
@@ -143,7 +145,7 @@ fun TaxiMenu(navController: NavController) {
                 }
                 item {
                     TaxiMenuElement(
-                        imageVector = Icons.Default.Favorite, // Icon for "Last Ride".
+                        painter = painterResource(id = R.drawable.history),
                         text = "Your Rides",
                         onClick = {
                             navController.navigate("your_rides") // Navigate to the "your_rides" screen on click.
@@ -152,7 +154,7 @@ fun TaxiMenu(navController: NavController) {
                 }
                 item {
                     TaxiMenuElement(
-                        imageVector = Icons.Default.Add, // Icon for "Saved Addresses".
+                        painter = painterResource(id = R.drawable.address),
                         text = "Saved Addresses",
                         onClick = {
                             navController.navigate("saved_addresses") // Navigate to the "saved_addresses" screen on click.
@@ -168,13 +170,13 @@ fun TaxiMenu(navController: NavController) {
  * Displays a single element within the taxi menu.
  * Each element consists of an icon and a text label, and is clickable.
  *
- * @param imageVector The icon to display for this menu element.
+ * @param painter The painter resource (e.g., from `painterResource`) to display for this menu element.
  * @param text The text label for this menu element.
  * @param onClick The lambda function to be executed when this element is clicked. Defaults to an empty action.
  */
 @Composable
 fun TaxiMenuElement(
-    imageVector: ImageVector,
+    painter: Painter,
     text: String,
     onClick: () -> Unit = {} // Default empty lambda if no onClick is provided.
 ) {
@@ -196,7 +198,7 @@ fun TaxiMenuElement(
         verticalArrangement = Arrangement.Center // Center children vertically within the Column.
     ) {
         Icon(
-            imageVector = imageVector,
+            painter = painter,
             contentDescription = text, // Use the text as content description for accessibility.
             modifier = Modifier.size(elementSize * 0.3f) // Icon size relative to the element size (30% of 100.dp = 30.dp).
         )
