@@ -12,13 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults // Added import
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.MaterialTheme
+// import androidx.compose.material3.MaterialTheme // Commented out if not directly used after changes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color // Added import
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -105,8 +107,8 @@ fun PickLocationScreen(
             TopAppBar(
                 title = { Text("Pick Location") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
+                    containerColor = Color(0xFFD32F2F),
+                    titleContentColor = Color.White
                 )
             )
         }
@@ -213,7 +215,11 @@ fun PickLocationScreen(
                         }
                     },
                     enabled = isLocationSelected,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFD32F2F),
+                        contentColor = Color.White
+                    )
                 ) {
                     Text("Confirm Location")
                 }
@@ -255,8 +261,9 @@ private suspend fun getAddressFromMapTapForPicker(context: Context, latLng: LatL
             }
         } catch (e: IOException) {
             Log.e("PickLocationScreen", "Error in getAddressFromMapTapForPicker (Geocoder): ${e.message}")
+        } catch (e: IllegalArgumentException) {
+             Log.e("PickLocationScreen", "Invalid LatLng in getAddressFromMapTapForPicker: ${e.message}")
         }
         addressText
     }
 }
-
