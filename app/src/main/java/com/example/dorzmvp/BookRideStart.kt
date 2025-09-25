@@ -4,14 +4,10 @@ import android.content.Context
 import android.location.Geocoder
 import android.util.Log
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,12 +35,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color // Added import for Color
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
-import com.example.dorzmvp.db.SavedAddress
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -69,10 +63,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-/** Default latitude and longitude, initially set to Dubai. Used to center the map when it first loads. */
 val DEFAULT_LOCATION = LatLng(25.2048, 55.2708) // Dubai
-
-/** Default zoom level for the map. */
 const val DEFAULT_ZOOM = 10f
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,7 +125,7 @@ fun BookRideStartScreen(
                                     .padding(vertical = 4.dp)
                                     .clickable {
                                         selectedLatLng = LatLng(address.latitude, address.longitude)
-                                        selectedPlaceDisplayName = address.name // Or address.address
+                                        selectedPlaceDisplayName = address.name
                                         coroutineScope.launch {
                                             cameraPositionState.animate(
                                                 CameraUpdateFactory.newLatLngZoom(selectedLatLng!!, 15f),
@@ -148,8 +139,8 @@ fun BookRideStartScreen(
                                 Text(
                                     text = "${address.name} - ${address.address}",
                                     modifier = Modifier
-                                        .fillMaxWidth() // Ensure text uses full width of card
-                                        .padding(16.dp) // Padding inside the card
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
                                 )
                             }
                         }
@@ -169,7 +160,7 @@ fun BookRideStartScreen(
             TopAppBar(
                 title = { Text("Select Starting Point") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFD32F2F), // Material Red 700
+                    containerColor = Color(0xFFD32F2F),
                     titleContentColor = Color.White
                 )
             )
@@ -182,8 +173,13 @@ fun BookRideStartScreen(
         ) {
             TextField(
                 value = searchQuery,
-                onValueChange = { searchQuery = it },
+                onValueChange = { query ->
+                    if (!query.contains("\n")) {
+                        searchQuery = query
+                    }
+                },
                 label = { Text("Search for a location") },
+                singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp)
@@ -251,7 +247,6 @@ fun BookRideStartScreen(
                             val address = getAddressFromMapTap(context, latLng)
                             selectedPlaceDisplayName = address ?: "Unknown location"
                         }
-                        Log.d("MapClick", "Map tapped. Selected: $latLng")
                     }
                 ) {
                     selectedLatLng?.let { location ->
@@ -283,13 +278,16 @@ fun BookRideStartScreen(
                 Button(
                     onClick = {
                         selectedLatLng?.let { startLocation ->
-                            Log.i("BookRideStart", "Confirmed starting point: $startLocation, Name: $selectedPlaceDisplayName")
                             navController.previousBackStackEntry?.savedStateHandle?.set("selectedStartLocation", startLocation)
                             navController.popBackStack()
                         }
                     },
                     enabled = isLocationSelected,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFD32F2F),
+                        contentColor = Color.White
+                    )
                 ) {
                     Text("Confirm Starting Point")
                 }
@@ -308,9 +306,7 @@ private fun fetchPlaceDetails(
 
     placesClient.fetchPlace(request)
         .addOnSuccessListener { response ->
-            val place = response.place
-            Log.i("BookRideStart", "Place details fetched: ${place.name ?: "Unknown name"}")
-            onPlaceFetched(place)
+            onPlaceFetched(response.place)
         }
         .addOnFailureListener { exception ->
             if (exception is ApiException) {
@@ -331,8 +327,6 @@ private suspend fun getAddressFromMapTap(context: Context, latLng: LatLng): Stri
             }
         } catch (e: IOException) {
             Log.e("BookRideStart", "Error getting address from map tap: ${e.message}")
-        } catch (e: IllegalArgumentException) {
-            Log.e("BookRideStart", "Invalid LatLng passed to geocoder for map tap: ${e.message}")
         }
         addressText ?: "Unknown location near %.5f, %.5f".format(Locale.US, latLng.latitude, latLng.longitude)
     }
