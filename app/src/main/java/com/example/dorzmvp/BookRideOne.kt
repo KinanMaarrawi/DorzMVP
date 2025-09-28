@@ -758,57 +758,6 @@ private fun RideOptionItem(
     }
 }
 
-
-/**
- * Displays a single taxi ride option item.
- */
-@Composable
-private fun RideOptionItem(option: TaxiOptionResponse) {
-    val waitingTimeSeconds = option.waitingTime ?: 0.0
-    val waitingTimeMinutes = (waitingTimeSeconds / 60).roundToInt()
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 16.dp)
-            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.yango_logo),
-                contentDescription = "Yango Logo",
-                modifier = Modifier.size(40.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = option.classText ?: option.className ?: "Unknown Class",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Wait: ~$waitingTimeMinutes min",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = option.priceText ?: "N/A",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
-
 /**
  * A suspend function to convert Latitude/Longitude coordinates into a human-readable address string.
  */
