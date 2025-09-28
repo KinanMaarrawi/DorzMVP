@@ -23,11 +23,13 @@ import com.example.dorzmvp.BuildConfig
 import com.example.dorzmvp.network.ApiClient
 import com.example.dorzmvp.network.YandexTaxiInfoResponse
 import com.example.dorzmvp.network.YandexApiService
+import com.example.dorzmvp.network.TaxiOptionResponse
 import com.google.android.gms.maps.model.LatLng
-import com.google.gson.JsonSyntaxException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import java.io.EOFException
-import java.io.IOException
 
 /**
  * ViewModel for the ride booking feature.
@@ -58,132 +60,112 @@ class BookRideViewModel(application: Application) : AndroidViewModel(application
     private val _errorMessage = MutableLiveData<String?>()
     val errorMessage: LiveData<String?> = _errorMessage
 
-    // Defines the different taxi service classes to query the API for.
-    // The API is called individually for each of these classes.
-    private val taxiClassesToFetch = listOf("econom", "business", "comfortplus", "minivan", "vip")
-
     /**
      * Fetches taxi information for multiple service classes from the Yandex Taxi API.
      *
-     * Iterates through a predefined list of taxi classes (`taxiClassesToFetch`),
-     * making an individual API call for each. It aggregates valid responses and updates
-     * the `taxiOptions` LiveData. It also manages loading states and error messages.
+     * Iterates through a predefined list of taxi classes, making an individual API call
+     * for each in parallel. It aggregates valid responses and updates the `taxiOptions`
+     * LiveData. It also manages loading states and error messages.
      *
      * @param startLatLng The starting coordinates (latitude and longitude).
      * @param destinationLatLng The destination coordinates (latitude and longitude).
-     * @param taxiClass This parameter is present from a previous structure but is effectively
-     *                  overridden by the internal loop that iterates through `taxiClassesToFetch`.
-     *                  It's kept for potential future use or direct class queries if needed.
-     * @param requirements Optional requirements for the taxi (e.g., child seat). Currently passed through.
      */
-    fun fetchTaxiInformation(
-        startLatLng: LatLng,
-        destinationLatLng: LatLng,
-        taxiClass: String? = null, // Note: This parameter is currently unused due to the loop below.
-        requirements: String? = null
-    ) {
-        // Format the route coordinates string as required by the Yandex API.
-        val rll = "${startLatLng.longitude},${startLatLng.latitude}~${destinationLatLng.longitude},${destinationLatLng.latitude}"
-        // Retrieve API credentials securely from BuildConfig (which gets them from secrets or gradle properties).
-        val clid = BuildConfig.YANGO_CLID
-        val apikey = BuildConfig.YANGO_API_KEY
+    fun fetchTaxiInformation(startLatLng: LatLng, destinationLatLng: LatLng) {
+        // A list of taxi classes to fetch information for.
+        val taxiClasses = listOf("econom", "business", "comfortplus", "minivan", "vip")
+        // This list will temporarily hold the options from all successful API calls.
+        val aggregatedOptions = mutableListOf<TaxiOptionResponse>()
+        // Holds the currency from the first successful response.
+        var currency: String? = null
 
-        _isLoading.value = true // Signal that loading has started.
-        _errorMessage.value = null // Clear any previous error messages.
-
-        val allFetchedOptions = mutableListOf<com.example.dorzmvp.network.TaxiOptionResponse>() // Accumulator for all valid options.
-
-        // Launch a coroutine in the viewModelScope. This scope is tied to the ViewModel's lifecycle.
         viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            _taxiOptions.value = null // Clear old results immediately
+
+            val route = "${startLatLng.longitude},${startLatLng.latitude}~${destinationLatLng.longitude},${destinationLatLng.latitude}"
+
             try {
-                // Loop through each defined taxi class and make a separate API call.
-                for (currentClass in taxiClassesToFetch) {
-                    Log.d("BookRideViewModel", "Fetching info for class: $currentClass")
-                    try {
-                        // Perform the actual network request using the YandexApiService.
-                        val response = yandexApiService.getTaxiInfo(
-                            clid = clid,
-                            apikey = apikey,
-                            routeLongLat = rll,
-                            lang = "en",        // Request language for response data.
-                            currency = "AED",   // Request currency for pricing.
-                            taxiClass = currentClass, // The specific class for this request.
-                            requirements = requirements
-                        )
-
-                        if (response.isSuccessful) {
-                            // HTTP request was successful (e.g., 200 OK).
+                // Use coroutineScope to create a structured concurrency block.
+                // This ensures we wait for all child jobs (the API calls) to complete.
+                coroutineScope {
+                    taxiClasses.map { taxiClass ->
+                        // CRITICAL: Launch each API call in its OWN async job.
+                        // This isolates them. Failure or cancellation of one won't affect others.
+                        async(Dispatchers.IO) {
                             try {
-                                // Attempt to parse the response body.
-                                // This is where an EOFException can occur if the body is empty,
-                                // or JsonSyntaxException if the body is not valid JSON.
-                                val responseBody = response.body()
-
-                                if (responseBody?.options?.isNotEmpty() == true) {
-                                    // Successfully parsed and options are available.
-                                    val processedOptions = responseBody.options.map {
-                                        // Ensure classText and className are populated, falling back to currentClass if needed.
-                                        it.copy(
-                                            classText = it.classText ?: it.className ?: currentClass.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() },
-                                            className = it.className ?: currentClass
-                                        )
-                                    }
-                                    allFetchedOptions.addAll(processedOptions)
-                                    Log.d("BookRideViewModel", "Added ${processedOptions.size} options for class: $currentClass. Details: $processedOptions")
-                                } else {
-                                    // Response was successful and parsable, but contained no options or an empty body leading to a null responseBody after parsing.
-                                    Log.d("BookRideViewModel", "No options in API response for class: $currentClass (body: $responseBody)")
-                                }
-                            } catch (e: EOFException) {
-                                // Handle cases where the API returns a 200 OK but with an empty body (e.g., Content-Length: 0).
-                                // This indicates no availability for the class, rather than a server error.
-                                Log.w("BookRideViewModel", "Empty response body (EOFException) for class: $currentClass. Treating as no options.")
-                            } catch (e: JsonSyntaxException) {
-                                // Handle cases where the API returns 200 OK, but the body is not valid JSON or doesn't match YandexTaxiInfoResponse structure.
-                                Log.e("BookRideViewModel", "JSON parsing error for $currentClass: ${e.message}. Body might be non-JSON or malformed.")
+                                Log.d("BookRideViewModel", "Fetching info for class: $taxiClass")
+                                yandexApiService.getTaxiInfo(
+                                    clid = BuildConfig.YANGO_CLID,
+                                    apikey = BuildConfig.YANGO_API_KEY,
+                                    routeLongLat = route,
+                                    lang = "en",
+                                    currency = "AED",
+                                    taxiClass = taxiClass
+                                )
+                            } catch (e: Exception) {
+                                // If a single network call fails (e.g., timeout, cancellation),
+                                // log it but return null so it doesn't crash the whole process.
+                                Log.e("BookRideViewModel", "API call failed for $taxiClass", e)
+                                null
                             }
-                        } else {
-                            // HTTP request failed (e.g., 4xx client error, 5xx server error).
-                            val errorBodyString = response.errorBody()?.string() // Attempt to read the error body.
-                            Log.e("BookRideViewModel", "API Error for $currentClass (${response.code()}): $errorBodyString")
                         }
-                    } catch (e: IOException) {
-                        // Handle network-level errors for an individual API call (e.g., no internet connection during this specific call).
-                        Log.e("BookRideViewModel", "Network error during API call for $currentClass: ${e.message}", e)
-                    } catch (e: Exception) {
-                        // Catch any other unexpected errors during an individual API call.
-                        Log.e("BookRideViewModel", "Unexpected error during API call for $currentClass: ${e.message}", e)
-                    }
-                } // End of loop for taxiClassesToFetch.
+                    }.awaitAll() // Wait for all the async jobs to finish.
+                        .filterNotNull() // Filter out any calls that failed (returned null).
+                        .filter { it.isSuccessful && it.body() != null } // Filter for successful responses with a body.
+                        .forEach { response ->
+                            response.body()?.let { body ->
+                                // If we don't have a currency yet, take it from the first valid response.
+                                if (currency == null) {
+                                    currency = body.currency
+                                }
+                                // Add the options from this successful call to our aggregate list.
+                                body.options?.let { aggregatedOptions.addAll(it) }
+                                Log.d("BookRideViewModel", "Added ${body.options?.size ?: 0} options for class: ${response.raw().request.url.queryParameter("class")}")
+                            }
+                        }
+                }
 
-                // After attempting to fetch all classes, update LiveData based on aggregated results.
-                if (allFetchedOptions.isNotEmpty()) {
-                    // Use distinctBy to avoid showing duplicate entries if the API somehow returns them for different class queries but identical details.
-                    _taxiOptions.value = YandexTaxiInfoResponse(options = allFetchedOptions.distinctBy {listOf(it.className, it.priceText) })
-                    Log.d("BookRideViewModel", "Aggregated Taxi Options (count: ${allFetchedOptions.size}, distinct count: ${_taxiOptions.value?.options?.size}): ${_taxiOptions.value}")
+                // --- Post the FINAL result, only once ---
+                if (aggregatedOptions.isNotEmpty()) {
+                    val finalResponse = YandexTaxiInfoResponse(
+                        currency = currency,
+                        options = aggregatedOptions.distinct().sortedBy { it.price } // Remove duplicates and sort by price
+                    )
+                    _taxiOptions.postValue(finalResponse)
+                    Log.d("BookRideViewModel", "Final aggregated options posted. Count: ${finalResponse.options?.size}")
                 } else {
-                    // No options found for any class, or all calls resulted in errors/empty responses.
-                    _taxiOptions.value = YandexTaxiInfoResponse(options = emptyList())
-                    _errorMessage.value = "No ride options found for the selected route."
-                    Log.w("BookRideViewModel", "No ride options found after checking all classes.")
+                    // If after all calls, we have no options, post an error.
+                    _errorMessage.postValue("No ride options found for this route.")
                 }
 
             } catch (e: Exception) {
-                // Catch-all for any unforeseen errors within the main try block of the coroutine (e.g., issues outside the loop).
-                Log.e("BookRideViewModel", "Outer scope error in fetchTaxiInformation: ${e.message}", e)
-                _errorMessage.value = "A critical error occurred while fetching ride options."
-                 _taxiOptions.value = YandexTaxiInfoResponse(options = emptyList()) // Ensure options are cleared on critical error.
+                // Catch any unexpected errors during the aggregation process.
+                _errorMessage.postValue("An unexpected error occurred: ${e.message}")
             } finally {
-                _isLoading.value = false // Signal that loading has finished, regardless of outcome.
+                // This now runs only after ALL API calls have completed or failed.
+                _isLoading.postValue(false)
             }
         }
     }
+
+    private val _selectedRideOption = MutableLiveData<TaxiOptionResponse?>()
+    val selectedRideOption: LiveData<TaxiOptionResponse?> = _selectedRideOption
+
+    fun selectRideOption(option: TaxiOptionResponse) {
+        _selectedRideOption.value = option
+    }
+
+    fun clearSelectedRideOption() {
+        _selectedRideOption.value = null
+    }
+
 
     /**
      * Clears the current error message.
      * Called by the UI when an error message has been displayed and should be dismissed.
      */
-    fun clearErrorMessage() {
+    fun clearError() {
         _errorMessage.value = null
     }
 }

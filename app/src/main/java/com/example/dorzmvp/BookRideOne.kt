@@ -43,6 +43,7 @@ package com.example.dorzmvp
 import android.content.ClipboardManager
 import android.content.Context
 import android.location.Geocoder
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -98,6 +99,7 @@ import com.example.dorzmvp.network.TaxiOptionResponse
 import com.example.dorzmvp.network.YandexTaxiInfoResponse
 import com.example.dorzmvp.ui.viewmodel.BookRideViewModel
 import com.google.android.gms.maps.model.LatLng
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -142,13 +144,13 @@ fun BookARideMainUI(navController: NavController, rideViewModel: BookRideViewMod
     // State for the human-readable address of the selected destination location.
     // Null if no address has been fetched or if no destination is selected. Persisted.
     var destinationAddress by rememberSaveable { mutableStateOf<String?>(null) }
+    // This guard prevents the LaunchedEffect from re-fetching taxi info for the same locations.
+    var hasFetchedForCurrentLocations by rememberSaveable { mutableStateOf(false) }
 
     // Provides the current Android application context, needed for services like Geocoder and ClipboardManager.
     val context = LocalContext.current
     // Coroutine scope tied to the composable's lifecycle for launching asynchronous tasks like address fetching or link parsing.
     val coroutineScope = rememberCoroutineScope()
-    // The current NavBackStackEntry, used to access SavedStateHandle for retrieving results from other screens.
-    val navBackStackEntry = navController.currentBackStackEntry
 
     // Observes the loading state from the ViewModel for Yandex taxi options.
     // True if taxi options are currently being fetched, false otherwise. Displayed as a CircularProgressIndicator.
@@ -184,54 +186,65 @@ fun BookARideMainUI(navController: NavController, rideViewModel: BookRideViewMod
         return coerced?.takeIf { it.isNotEmpty() } // Return text only if it's not effectively blank.
     }
 
+    // --- CONSOLIDATED AND STABLE EFFECT ---
+    // This single LaunchedEffect handles results from other screens.
+    LaunchedEffect(navController.currentBackStackEntry) {
+        val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle ?: return@LaunchedEffect
+
+        // Check for a start location result
+        savedStateHandle.get<LatLng>("selectedStartLocation")?.let { latLng ->
+            if (selectedStartLocation != latLng) {
+                Log.d("BookRideOneResult", "Got new START location: $latLng")
+                selectedStartLocation = latLng
+            }
+            // CRUCIAL: Consume the event regardless of whether it was new or not.
+            savedStateHandle.remove<LatLng>("selectedStartLocation")
+        }
+
+        // Check for a destination location result
+        savedStateHandle.get<LatLng>("selectedDestinationLocation")?.let { latLng ->
+            if (selectedDestinationLocation != latLng) {
+                Log.d("BookRideOneResult", "Got new DESTINATION location: $latLng")
+                selectedDestinationLocation = latLng
+            }
+            // CRUCIAL: Consume the event regardless of whether it was new or not.
+            savedStateHandle.remove<LatLng>("selectedDestinationLocation")
+        }
+    }
+
+
     // LaunchedEffect to react to changes in the selected start location's LatLng.
     // When `selectedStartLocation` is updated and non-null, it launches a coroutine
-    // in the `coroutineScope` to fetch the human-readable address for these coordinates
-    // using `getAddressFromLatLng`. The result updates the `startAddress` state.
+    // to fetch the human-readable address for these coordinates.
     LaunchedEffect(selectedStartLocation) { // Keyed: re-runs if selectedStartLocation changes.
         selectedStartLocation?.let { latLng ->
             Log.d(TAG_LINK_PARSING, "Start location LatLng updated: $latLng. Fetching address.")
+            hasFetchedForCurrentLocations = false
             coroutineScope.launch {
                 startAddress = getAddressFromLatLng(context, latLng)
             }
         }
     }
-    // Observes LiveData from the NavController's SavedStateHandle for the key "selectedStartLocation".
-    // This mechanism is used to receive LatLng data passed back from the BookRideStartScreen
-    // after the user selects a location on the map.
-    // If new LatLng data is received and it's different from the current `selectedStartLocation`,
-    // it updates the local `selectedStartLocation` state.
-    // The data is then removed from the SavedStateHandle to prevent it from being processed again
-    // on recomposition or configuration change.
-    navBackStackEntry?.savedStateHandle?.getLiveData<LatLng>("selectedStartLocation")?.observeAsState()?.value?.let { latLng ->
-        if (selectedStartLocation != latLng) { // Update only if the location is genuinely new.
-            Log.d(TAG_LINK_PARSING, "Start location received from NavBackStack: $latLng")
-            selectedStartLocation = latLng // Update the state.
-        }
-        // Crucial: Remove the data from SavedStateHandle to prevent re-processing on next recomposition
-        // or if the screen is revisited after a configuration change.
-        navBackStackEntry.savedStateHandle.remove<LatLng>("selectedStartLocation")
-    }
 
+    // LaunchedEffect to react to changes in the selected destination location's LatLng.
     LaunchedEffect(selectedDestinationLocation) {
         selectedDestinationLocation?.let { latLng ->
             Log.d(TAG_LINK_PARSING, "Destination location LatLng updated: $latLng. Fetching address.")
+            hasFetchedForCurrentLocations = false
             coroutineScope.launch {
                 destinationAddress = getAddressFromLatLng(context, latLng)
             }
         }
     }
-    navBackStackEntry?.savedStateHandle?.getLiveData<LatLng>("selectedDestinationLocation")?.observeAsState()?.value?.let { latLng ->
-        if (selectedDestinationLocation != latLng) {
-            Log.d(TAG_LINK_PARSING, "Destination location received from NavBackStack: $latLng")
-            selectedDestinationLocation = latLng
-        }
-        navBackStackEntry.savedStateHandle.remove<LatLng>("selectedDestinationLocation")
-    }
 
+    // This effect triggers the API call once all conditions are met.
     LaunchedEffect(selectedStartLocation, selectedDestinationLocation, startAddress, destinationAddress) {
-        if (selectedStartLocation != null && selectedDestinationLocation != null && startAddress != null && destinationAddress != null) {
+        if (selectedStartLocation != null && selectedDestinationLocation != null && startAddress != null && destinationAddress != null && !hasFetchedForCurrentLocations) {
             Log.d("BookARideMainUI", "Both locations selected and addresses resolved, fetching Yango info...")
+
+            // Set the guard to true immediately to prevent re-fetching
+            hasFetchedForCurrentLocations = true
+
             rideViewModel.fetchTaxiInformation(
                 startLatLng = selectedStartLocation!!,
                 destinationLatLng = selectedDestinationLocation!!
@@ -302,14 +315,16 @@ fun BookARideMainUI(navController: NavController, rideViewModel: BookRideViewMod
             isLoading = isLoadingYango,
             optionsResponse = yangoTaxiOptions, // Pass the full response object
             errorMsg = yangoErrorMessage,
-            onClearError = { rideViewModel.errorMessage },
+            onClearError = { rideViewModel.clearError() },
             onOptionSelected = { selectedOption ->
-                navController.currentBackStackEntry?.savedStateHandle?.set("rideOption", selectedOption)
+                rideViewModel.selectRideOption(selectedOption)
                 navController.navigate("payment_screen")
             }
+
         )
     }
 }
+
 
 /**
  * Orchestrates the parsing of a Google Maps link (or any text potentially containing coordinates) to extract a [LatLng].

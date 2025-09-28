@@ -64,16 +64,28 @@ fun PaymentScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // --- FIX 1: Handle null class name ---
                     Text(
-                        text = "Class: ${rideOption.className}",
+                        text = "Class: ${rideOption.classText ?: rideOption.className ?: "Unknown"}",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Price: ${rideOption.priceText}", fontSize = 18.sp)
+
+                    // --- FIX 2: Handle null price text ---
+                    Text(
+                        "Price: ${rideOption.priceText ?: "Not available"}",
+                        fontSize = 18.sp
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    // --- FIX 3: Handle null waiting time ---
                     val waitTimeMinutes = rideOption.waitingTime?.div(60)?.roundToInt()
-                    Text("Estimated Wait Time: $waitTimeMinutes min", fontSize = 16.sp)
+                    Text(
+                        // Use a fallback text if waitTimeMinutes is null
+                        text = if (waitTimeMinutes != null) "Estimated Wait Time: $waitTimeMinutes min" else "Wait Time: Not available",
+                        fontSize = 16.sp
+                    )
                 }
             }
 
@@ -110,8 +122,7 @@ fun PaymentScreen(
             // Confirmation Button
             Button(
                 onClick = { /* Dummy action */ },
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Confirm Ride")
             }

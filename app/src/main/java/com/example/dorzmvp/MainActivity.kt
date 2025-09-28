@@ -7,13 +7,19 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.dorzmvp.network.TaxiOptionResponse
 import com.example.dorzmvp.ui.theme.DorzMVPTheme
+import com.example.dorzmvp.ui.viewmodel.BookRideViewModel
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModelFactory
 import com.google.android.libraries.places.api.Places
@@ -41,6 +47,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val navController = rememberNavController()
+            val bookRideViewModel: BookRideViewModel = viewModel()
             val context = LocalContext.current
             val savedAddressViewModel: SavedAddressViewModel = ViewModelProvider(
                 this,
@@ -52,7 +59,7 @@ class MainActivity : ComponentActivity() {
                     HomeScreenUI(navController)
                 }
                 composable("book_ride_one"){
-                    BookARideMainUI(navController)
+                    BookARideMainUI(navController, bookRideViewModel)
                 }
                 composable("book_ride_start"){
                     BookRideStartScreen(navController, savedAddressViewModel)
@@ -60,21 +67,17 @@ class MainActivity : ComponentActivity() {
                 composable("book_ride_destination"){
                     BookRideDestinationScreen(navController, savedAddressViewModel)
                 }
+                // In MainActivity.kt, inside your NavHost
+
                 composable("payment_screen") {
-                    val rideOption = navController.previousBackStackEntry?.savedStateHandle?.get<TaxiOptionResponse>("rideOption")
+                    val rideOption by bookRideViewModel.selectedRideOption.observeAsState()
                     if (rideOption != null) {
-                        PaymentScreen(navController = navController, rideOption = rideOption)
+                        PaymentScreen(navController = navController, rideOption = rideOption!!)
+                        // Optionally clear it when you leave the payment screen
                     } else {
-                        // Handle the case where the ride option is null, maybe pop back
-                        Log.e("MainActivity", "Cannot navigate to payment screen, rideOption is null")
+                        Log.e("MainActivity", "Ride option in ViewModel was null.")
                         navController.popBackStack()
                     }
-                }
-                composable("book_ride_two"){
-                    /* TODO: Implement UI */
-                }
-                composable("book_ride_card"){
-                    /* TODO: Implement UI */
                 }
                 composable("book_ride_confirmed"){
                     /* TODO: Implement UI */
