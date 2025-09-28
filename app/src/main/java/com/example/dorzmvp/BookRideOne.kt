@@ -95,6 +95,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.dorzmvp.network.TaxiOptionResponse
+import com.example.dorzmvp.network.YandexTaxiInfoResponse
 import com.example.dorzmvp.ui.viewmodel.BookRideViewModel
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
@@ -299,14 +300,11 @@ fun BookARideMainUI(navController: NavController, rideViewModel: BookRideViewMod
         Spacer(modifier = Modifier.height(16.dp))
         YangoRideOptionsDisplay(
             isLoading = isLoadingYango,
-            options = yangoTaxiOptions?.options,
+            optionsResponse = yangoTaxiOptions, // Pass the full response object
             errorMsg = yangoErrorMessage,
             onClearError = { rideViewModel.errorMessage },
-            // Implement the navigation logic here
             onOptionSelected = { selectedOption ->
-                // Store the selected ride data in the SavedStateHandle for the next screen to retrieve
                 navController.currentBackStackEntry?.savedStateHandle?.set("rideOption", selectedOption)
-                // Navigate to the payment screen
                 navController.navigate("payment_screen")
             }
         )
@@ -654,7 +652,7 @@ private suspend fun resolveShortUrl(shortUrl: String): String? {
 @Composable
 private fun YangoRideOptionsDisplay(
     isLoading: Boolean,
-    options: List<TaxiOptionResponse>?,
+    optionsResponse: YandexTaxiInfoResponse?,
     errorMsg: String?,
     onClearError: () -> Unit,
     onOptionSelected: (TaxiOptionResponse) -> Unit // Add this parameter
@@ -683,14 +681,17 @@ private fun YangoRideOptionsDisplay(
         }
 
         if (!isLoading && errorMsg == null) {
-            options?.let { rideOptions ->
+            optionsResponse?.options?.let { rideOptions ->
                 if (rideOptions.isEmpty()) {
                     Text("No ride options available for this route currently.", modifier = Modifier.padding(16.dp))
                 }
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     items(rideOptions) { option ->
                         // Pass the click event up to the parent
-                        RideOptionItem(option = option, onClick = { onOptionSelected(option) })
+                        RideOptionItem(
+                            option = option,
+                            currency = optionsResponse.currency ?: "AED",
+                            onClick = { onOptionSelected(option) })
                     }
                 }
             }
@@ -706,7 +707,11 @@ private fun YangoRideOptionsDisplay(
 * @param onClick Lambda to be executed when the item is clicked.
 */
 @Composable
-private fun RideOptionItem(option: TaxiOptionResponse, onClick: () -> Unit) { // Add onClick parameter
+private fun RideOptionItem(
+    option: TaxiOptionResponse,
+    currency: String,
+    onClick: () -> Unit)
+    {
     val waitingTimeSeconds = option.waitingTime ?: 0.0
     val waitingTimeMinutes = (waitingTimeSeconds / 60).roundToInt()
 
@@ -718,7 +723,6 @@ private fun RideOptionItem(option: TaxiOptionResponse, onClick: () -> Unit) { //
             .clickable(onClick = onClick) // Make the whole item clickable
             .padding(16.dp)
     ) {
-        // ... rest of the Row and its contents remain the same
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -738,17 +742,17 @@ private fun RideOptionItem(option: TaxiOptionResponse, onClick: () -> Unit) { //
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Wait: ~$waitingTimeMinutes min",
+                    text = "Wait: ~$waitingTimeMinutes mins",
                     fontSize = 14.sp,
                     color = Color.Gray
                 )
             }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
-                text = option.priceText ?: "N/A",
+                text = "${option.price?.roundToInt() ?: "N/A"} $currency",
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                color = MaterialTheme.colorScheme.primary
+                color = Color(0xFFD32F2F)
             )
         }
     }
