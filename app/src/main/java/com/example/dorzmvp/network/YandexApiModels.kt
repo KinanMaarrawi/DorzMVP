@@ -1,6 +1,8 @@
 package com.example.dorzmvp.network
 
+import android.os.Parcelable
 import com.google.gson.annotations.SerializedName
+import kotlinx.parcelize.Parcelize
 
 /**
  * Represents the top-level response from the Yandex Taxi Info API.
@@ -15,6 +17,7 @@ data class YandexTaxiInfoResponse(
 /**
  * Represents a single taxi ride option within the Yandex API response.
  */
+@Parcelize
 data class TaxiOptionResponse(
     @SerializedName("class_level") val classLevel: Int? = null,
     @SerializedName("class_name") val className: String? = null, // e.g., "econom", "business"
@@ -23,4 +26,4 @@ data class TaxiOptionResponse(
     @SerializedName("price") val price: Double? = null, // The estimated price
     @SerializedName("price_text") val priceText: String? = null, // e.g., "30 AED."
     @SerializedName("waiting_time") val waitingTime: Double? = null // Estimated waiting time in seconds
-)
+) : Parcelable

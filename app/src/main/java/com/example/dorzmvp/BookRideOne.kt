@@ -87,6 +87,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -298,9 +299,16 @@ fun BookARideMainUI(navController: NavController, rideViewModel: BookRideViewMod
         Spacer(modifier = Modifier.height(16.dp))
         YangoRideOptionsDisplay(
             isLoading = isLoadingYango,
-            options = yangoTaxiOptions,
+            options = yangoTaxiOptions?.options,
             errorMsg = yangoErrorMessage,
-            onClearError = { rideViewModel.clearErrorMessage() }
+            onClearError = { rideViewModel.errorMessage },
+            // Implement the navigation logic here
+            onOptionSelected = { selectedOption ->
+                // Store the selected ride data in the SavedStateHandle for the next screen to retrieve
+                navController.currentBackStackEntry?.savedStateHandle?.set("rideOption", selectedOption)
+                // Navigate to the payment screen
+                navController.navigate("payment_screen")
+            }
         )
     }
 }
@@ -637,15 +645,19 @@ private suspend fun resolveShortUrl(shortUrl: String): String? {
     }
 }
 
+// In BookRideOne.kt
+
 /**
  * Displays the list of Yango taxi options, or a loading indicator / error message.
+ * @param onOptionSelected A callback that provides the selected ride option.
  */
 @Composable
 private fun YangoRideOptionsDisplay(
     isLoading: Boolean,
     options: List<TaxiOptionResponse>?,
     errorMsg: String?,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onOptionSelected: (TaxiOptionResponse) -> Unit // Add this parameter
 ) {
     Box(
         modifier = Modifier
@@ -677,13 +689,71 @@ private fun YangoRideOptionsDisplay(
                 }
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     items(rideOptions) { option ->
-                        RideOptionItem(option = option)
+                        // Pass the click event up to the parent
+                        RideOptionItem(option = option, onClick = { onOptionSelected(option) })
                     }
                 }
             }
         }
     }
 }
+
+
+// In BookRideOne.kt
+/**
+* Displays a single taxi ride option item.
+* @param option The ride option data to display.
+* @param onClick Lambda to be executed when the item is clicked.
+*/
+@Composable
+private fun RideOptionItem(option: TaxiOptionResponse, onClick: () -> Unit) { // Add onClick parameter
+    val waitingTimeSeconds = option.waitingTime ?: 0.0
+    val waitingTimeMinutes = (waitingTimeSeconds / 60).roundToInt()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 16.dp)
+            .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick) // Make the whole item clickable
+            .padding(16.dp)
+    ) {
+        // ... rest of the Row and its contents remain the same
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.yango_logo),
+                contentDescription = "Yango Logo",
+                modifier = Modifier.size(40.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = option.classText ?: option.className ?: "Unknown Class",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Wait: ~$waitingTimeMinutes min",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = option.priceText ?: "N/A",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
 
 /**
  * Displays a single taxi ride option item.

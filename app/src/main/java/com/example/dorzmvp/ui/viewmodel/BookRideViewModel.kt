@@ -21,7 +21,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.dorzmvp.BuildConfig
 import com.example.dorzmvp.network.ApiClient
-import com.example.dorzmvp.network.TaxiOptionResponse
+import com.example.dorzmvp.network.YandexTaxiInfoResponse
 import com.example.dorzmvp.network.YandexApiService
 import com.google.android.gms.maps.model.LatLng
 import com.google.gson.JsonSyntaxException
@@ -45,8 +45,8 @@ class BookRideViewModel(application: Application) : AndroidViewModel(application
 
     // LiveData to hold the list of successfully fetched and processed taxi options.
     // Observed by the UI to display ride options.
-    private val _taxiOptions = MutableLiveData<List<TaxiOptionResponse>?>()
-    val taxiOptions: LiveData<List<TaxiOptionResponse>?> = _taxiOptions
+    private val _taxiOptions = MutableLiveData<YandexTaxiInfoResponse?>()
+    val taxiOptions: LiveData<YandexTaxiInfoResponse?> = _taxiOptions
 
     // LiveData to indicate whether data is currently being loaded from the API.
     // Observed by the UI to show/hide loading indicators.
@@ -91,7 +91,7 @@ class BookRideViewModel(application: Application) : AndroidViewModel(application
         _isLoading.value = true // Signal that loading has started.
         _errorMessage.value = null // Clear any previous error messages.
 
-        val allFetchedOptions = mutableListOf<TaxiOptionResponse>() // Accumulator for all valid options.
+        val allFetchedOptions = mutableListOf<com.example.dorzmvp.network.TaxiOptionResponse>() // Accumulator for all valid options.
 
         // Launch a coroutine in the viewModelScope. This scope is tied to the ViewModel's lifecycle.
         viewModelScope.launch {
@@ -159,11 +159,11 @@ class BookRideViewModel(application: Application) : AndroidViewModel(application
                 // After attempting to fetch all classes, update LiveData based on aggregated results.
                 if (allFetchedOptions.isNotEmpty()) {
                     // Use distinctBy to avoid showing duplicate entries if the API somehow returns them for different class queries but identical details.
-                    _taxiOptions.value = allFetchedOptions.distinctBy {listOf(it.className, it.priceText) }
-                    Log.d("BookRideViewModel", "Aggregated Taxi Options (count: ${allFetchedOptions.size}, distinct count: ${_taxiOptions.value?.size}): ${_taxiOptions.value}")
+                    _taxiOptions.value = YandexTaxiInfoResponse(options = allFetchedOptions.distinctBy {listOf(it.className, it.priceText) })
+                    Log.d("BookRideViewModel", "Aggregated Taxi Options (count: ${allFetchedOptions.size}, distinct count: ${_taxiOptions.value?.options?.size}): ${_taxiOptions.value}")
                 } else {
                     // No options found for any class, or all calls resulted in errors/empty responses.
-                    _taxiOptions.value = emptyList()
+                    _taxiOptions.value = YandexTaxiInfoResponse(options = emptyList())
                     _errorMessage.value = "No ride options found for the selected route."
                     Log.w("BookRideViewModel", "No ride options found after checking all classes.")
                 }
@@ -172,7 +172,7 @@ class BookRideViewModel(application: Application) : AndroidViewModel(application
                 // Catch-all for any unforeseen errors within the main try block of the coroutine (e.g., issues outside the loop).
                 Log.e("BookRideViewModel", "Outer scope error in fetchTaxiInformation: ${e.message}", e)
                 _errorMessage.value = "A critical error occurred while fetching ride options."
-                 _taxiOptions.value = emptyList() // Ensure options are cleared on critical error.
+                 _taxiOptions.value = YandexTaxiInfoResponse(options = emptyList()) // Ensure options are cleared on critical error.
             } finally {
                 _isLoading.value = false // Signal that loading has finished, regardless of outcome.
             }

@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.dorzmvp.network.TaxiOptionResponse
 import com.example.dorzmvp.ui.theme.DorzMVPTheme
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModelFactory
@@ -58,6 +59,16 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("book_ride_destination"){
                     BookRideDestinationScreen(navController, savedAddressViewModel)
+                }
+                composable("payment_screen") {
+                    val rideOption = navController.previousBackStackEntry?.savedStateHandle?.get<TaxiOptionResponse>("rideOption")
+                    if (rideOption != null) {
+                        PaymentScreen(navController = navController, rideOption = rideOption)
+                    } else {
+                        // Handle the case where the ride option is null, maybe pop back
+                        Log.e("MainActivity", "Cannot navigate to payment screen, rideOption is null")
+                        navController.popBackStack()
+                    }
                 }
                 composable("book_ride_two"){
                     /* TODO: Implement UI */
