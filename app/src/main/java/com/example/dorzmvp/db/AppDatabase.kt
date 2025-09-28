@@ -5,10 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [SavedAddress::class], version = 1, exportSchema = false)
+@Database(entities = [SavedAddress::class, RideHistory::class], version =3) // <-- Version incremented to 3
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun savedAddressDao(): SavedAddressDao
+    abstract fun rideHistoryDao(): RideHistoryDao
 
     companion object {
         @Volatile
@@ -21,9 +22,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "dorz_mvp_database"
                 )
-                // Optional: Add migrations if you change the schema in the future
-                // .addMigrations(MIGRATION_1_2 /*, MIGRATION_2_3, ...*/)
-                .build()
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

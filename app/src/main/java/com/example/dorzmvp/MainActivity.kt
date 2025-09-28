@@ -12,14 +12,12 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
-import com.example.dorzmvp.network.TaxiOptionResponse
-import com.example.dorzmvp.ui.theme.DorzMVPTheme
 import com.example.dorzmvp.ui.viewmodel.BookRideViewModel
+import com.example.dorzmvp.ui.viewmodel.RideHistoryViewModel
+import com.example.dorzmvp.ui.viewmodel.RideHistoryViewModelFactory
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModelFactory
 import com.google.android.libraries.places.api.Places
@@ -49,12 +47,19 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             val bookRideViewModel: BookRideViewModel = viewModel()
             val context = LocalContext.current
+
             val savedAddressViewModel: SavedAddressViewModel = ViewModelProvider(
                 this,
                 SavedAddressViewModelFactory(context.applicationContext as Application)
             )[SavedAddressViewModel::class.java]
 
-            NavHost(navController = navController, startDestination = "home_screen", builder = {
+            // Create an instance of the new RideHistoryViewModel
+            val rideHistoryViewModel: RideHistoryViewModel = ViewModelProvider(
+                this,
+                RideHistoryViewModelFactory(context.applicationContext as Application)
+            )[RideHistoryViewModel::class.java]
+
+            NavHost(navController = navController, startDestination = "home_screen") {
                 composable("home_screen") {
                     HomeScreenUI(navController)
                 }
@@ -67,21 +72,18 @@ class MainActivity : ComponentActivity() {
                 composable("book_ride_destination"){
                     BookRideDestinationScreen(navController, savedAddressViewModel)
                 }
-                // In MainActivity.kt, inside your NavHost
-
                 composable("payment_screen") {
-                    // Observe all the necessary data from the shared ViewModel
                     val rideOption by bookRideViewModel.selectedRideOption.observeAsState()
                     val startAddress by bookRideViewModel.startAddress.observeAsState()
                     val destinationAddress by bookRideViewModel.destinationAddress.observeAsState()
 
                     if (rideOption != null) {
-                        // Pass the new address parameters to the PaymentScreen
                         PaymentScreen(
                             navController = navController,
                             rideOption = rideOption!!,
                             startAddress = startAddress,
-                            destinationAddress = destinationAddress
+                            destinationAddress = destinationAddress,
+                            rideHistoryViewModel = rideHistoryViewModel // Pass the correct ViewModel
                         )
                     } else {
                         Log.e("MainActivity", "Ride option in ViewModel was null.")
@@ -89,7 +91,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 composable("book_ride_confirmed"){
-                    /* TODO: Implement UI */
+                    RideConfirmedScreen(navController)
                 }
                 composable("book_ride_tracking"){
                     /* TODO: Implement UI */
@@ -98,12 +100,13 @@ class MainActivity : ComponentActivity() {
                     SavedAddressesScreen(navController, savedAddressViewModel)
                 }
                 composable("your_rides"){
-                    YourRidesScreen(navController)
+                    // Pass the correct ViewModel to the YourRidesScreen
+                    YourRidesScreen(navController, rideHistoryViewModel)
                 }
                 composable("pick_location_for_saved_address_route") {
                     PickLocationScreen(navController, resultKey = "pickedLocationForSavedAddress")
                 }
-            } )
+            }
         }
     }
 }

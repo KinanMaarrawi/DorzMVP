@@ -18,7 +18,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.dorzmvp.db.RideHistory
+import com.example.dorzmvp.db.RideStatus
 import com.example.dorzmvp.network.TaxiOptionResponse
+import com.example.dorzmvp.ui.viewmodel.RideHistoryViewModel
 
 private val dorzRed = Color(0xFFD32F2F)
 private val dorzWhite = Color.White
@@ -33,7 +36,8 @@ fun PaymentScreen(
     navController: NavController,
     rideOption: TaxiOptionResponse,
     startAddress: String?,
-    destinationAddress: String?
+    destinationAddress: String?,
+    rideHistoryViewModel: RideHistoryViewModel // Use the correct, dedicated ViewModel
 ) {
     var selectedPaymentMethod by rememberSaveable { mutableStateOf(PaymentMethod.NONE) }
     var isCardFormVisible by rememberSaveable { mutableStateOf(false) }
@@ -161,6 +165,14 @@ fun PaymentScreen(
             Button(
                 onClick = {
                     if (isConfirmEnabled) {
+                        val rideToSave = RideHistory(
+                            startAddress = startAddress ?: "Unknown",
+                            destinationAddress = destinationAddress ?: "Unknown",
+                            priceText = rideOption.priceText ?: "N/A",
+                            rideClass = rideOption.classText ?: "Unknown",
+                            status = RideStatus.ONGOING // <-- Set the status here
+                        )
+                        rideHistoryViewModel.saveRideToHistory(rideToSave)
                         navController.navigate("book_ride_confirmed") {
                             popUpTo("home_screen")
                         }
@@ -263,4 +275,3 @@ private fun CardDetailsForm(
         }
     }
 }
-

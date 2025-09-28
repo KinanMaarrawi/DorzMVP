@@ -6,9 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 class SavedAddressRepository(private val savedAddressDao: SavedAddressDao) {
 
-    fun getAllSavedAddresses(): Flow<List<SavedAddress>> {
-        return savedAddressDao.getAll()
-    }
+    // This property now correctly calls the renamed function in the DAO.
+    val allAddresses: Flow<List<SavedAddress>> = savedAddressDao.getAllSavedAddresses()
 
     suspend fun insert(address: SavedAddress) {
         savedAddressDao.insert(address)

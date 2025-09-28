@@ -14,7 +14,8 @@ import kotlinx.coroutines.launch
 
 class SavedAddressViewModel(private val repository: SavedAddressRepository) : ViewModel() {
 
-    val savedAddresses: StateFlow<List<SavedAddress>> = repository.getAllSavedAddresses()
+    // Corrected: Now uses the 'allAddresses' property from the repository
+    val savedAddresses: StateFlow<List<SavedAddress>> = repository.allAddresses
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
@@ -50,4 +51,13 @@ class SavedAddressViewModelFactory(private val application: Application) : ViewM
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
+
+    // REMOVED: This logic was incorrect here. It belongs in the RideHistoryViewModel logic,
+    // which is already correctly implemented elsewhere.
+    //
+    // val allRides: Flow<List<RideHistory>> = repository.allRides
+    //
+    // fun saveRideToHistory(ride: RideHistory) = viewModelScope.launch {
+    //     repository.insertRideHistory(ride)
+    // }
 }
