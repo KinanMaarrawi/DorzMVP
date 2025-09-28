@@ -60,6 +60,18 @@ class BookRideViewModel(application: Application) : AndroidViewModel(application
     private val _errorMessage = MutableLiveData<String?>()
     val errorMessage: LiveData<String?> = _errorMessage
 
+    // LiveData to hold the string representation of the start address.
+    private val _startAddress = MutableLiveData<String?>()
+    val startAddress: LiveData<String?> = _startAddress
+
+    // LiveData to hold the string representation of the destination address.
+    private val _destinationAddress = MutableLiveData<String?>()
+    val destinationAddress: LiveData<String?> = _destinationAddress
+
+    // LiveData to hold the specific ride option selected by the user to be passed to the payment screen.
+    private val _selectedRideOption = MutableLiveData<TaxiOptionResponse?>()
+    val selectedRideOption: LiveData<TaxiOptionResponse?> = _selectedRideOption
+
     /**
      * Fetches taxi information for multiple service classes from the Yandex Taxi API.
      *
@@ -149,17 +161,30 @@ class BookRideViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private val _selectedRideOption = MutableLiveData<TaxiOptionResponse?>()
-    val selectedRideOption: LiveData<TaxiOptionResponse?> = _selectedRideOption
+    /**
+     * Updates the start and destination address strings in the ViewModel.
+     * This is called from the UI after geocoding is complete.
+     */
+    fun updateAddresses(start: String?, destination: String?) {
+        _startAddress.value = start
+        _destinationAddress.value = destination
+    }
 
+    /**
+     * Stores the ride option chosen by the user.
+     * This is called from the UI just before navigating to the payment screen.
+     */
     fun selectRideOption(option: TaxiOptionResponse) {
         _selectedRideOption.value = option
     }
 
+    /**
+     * Clears the selected ride option.
+     * This can be called after the ride is confirmed or cancelled.
+     */
     fun clearSelectedRideOption() {
         _selectedRideOption.value = null
     }
-
 
     /**
      * Clears the current error message.

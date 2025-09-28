@@ -222,6 +222,7 @@ fun BookARideMainUI(navController: NavController, rideViewModel: BookRideViewMod
             hasFetchedForCurrentLocations = false
             coroutineScope.launch {
                 startAddress = getAddressFromLatLng(context, latLng)
+                rideViewModel.updateAddresses(start = startAddress, destination = destinationAddress)
             }
         }
     }
@@ -233,6 +234,7 @@ fun BookARideMainUI(navController: NavController, rideViewModel: BookRideViewMod
             hasFetchedForCurrentLocations = false
             coroutineScope.launch {
                 destinationAddress = getAddressFromLatLng(context, latLng)
+                rideViewModel.updateAddresses(start = startAddress, destination = destinationAddress)
             }
         }
     }

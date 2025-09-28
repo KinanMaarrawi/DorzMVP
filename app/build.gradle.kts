@@ -112,6 +112,7 @@ dependencies {
 
     // Google Engage Core (Purpose might need further clarification based on usage)
     implementation(libs.engage.core)
+    implementation(libs.androidx.compose.runtime.saveable)
 
     // Testing Libraries
     testImplementation(libs.junit)

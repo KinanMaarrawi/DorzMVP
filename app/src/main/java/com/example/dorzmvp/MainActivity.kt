@@ -70,10 +70,19 @@ class MainActivity : ComponentActivity() {
                 // In MainActivity.kt, inside your NavHost
 
                 composable("payment_screen") {
+                    // Observe all the necessary data from the shared ViewModel
                     val rideOption by bookRideViewModel.selectedRideOption.observeAsState()
+                    val startAddress by bookRideViewModel.startAddress.observeAsState()
+                    val destinationAddress by bookRideViewModel.destinationAddress.observeAsState()
+
                     if (rideOption != null) {
-                        PaymentScreen(navController = navController, rideOption = rideOption!!)
-                        // Optionally clear it when you leave the payment screen
+                        // Pass the new address parameters to the PaymentScreen
+                        PaymentScreen(
+                            navController = navController,
+                            rideOption = rideOption!!,
+                            startAddress = startAddress,
+                            destinationAddress = destinationAddress
+                        )
                     } else {
                         Log.e("MainActivity", "Ride option in ViewModel was null.")
                         navController.popBackStack()
