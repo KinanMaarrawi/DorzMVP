@@ -19,15 +19,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.dorzmvp.db.RideHistory
+import com.example.dorzmvp.ui.viewmodel.BookRideViewModel
 import com.example.dorzmvp.ui.viewmodel.RideHistoryViewModel
+import com.google.android.gms.maps.model.LatLng
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun YourRidesScreen(navController: NavController, rideHistoryViewModel: RideHistoryViewModel) {
-    // Collect both ongoing and finished rides from the ViewModel
+fun YourRidesScreen(
+    navController: NavController,
+    rideHistoryViewModel: RideHistoryViewModel,
+    bookRideViewModel: BookRideViewModel
+) {
     val ongoingRides by rideHistoryViewModel.ongoingRides.collectAsState(initial = emptyList())
     val finishedRides by rideHistoryViewModel.finishedRides.collectAsState(initial = emptyList())
 
@@ -48,7 +55,6 @@ fun YourRidesScreen(navController: NavController, rideHistoryViewModel: RideHist
         }
     ) { paddingValues ->
         if (ongoingRides.isEmpty() && finishedRides.isEmpty()) {
-            // Show empty state only if both lists are empty
             Box(
                 modifier = Modifier.padding(paddingValues).fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -70,7 +76,6 @@ fun YourRidesScreen(navController: NavController, rideHistoryViewModel: RideHist
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
-                // --- Ongoing Ride Section ---
                 if (ongoingRides.isNotEmpty()) {
                     item {
                         Text(
@@ -80,21 +85,32 @@ fun YourRidesScreen(navController: NavController, rideHistoryViewModel: RideHist
                         )
                     }
                     items(ongoingRides) { ride ->
-                        // Using a modified RideItem that includes the debug button
                         OngoingRideItem(
                             ride = ride,
                             onFinishClick = {
                                 Log.d("YourRidesScreen", "Finishing ride: ${ride.id}")
                                 rideHistoryViewModel.finishRide(ride)
+                            },
+                            onTrackClick = {
+                                val start = bookRideViewModel.startLocation.value
+                                val dest = bookRideViewModel.destinationLocation.value
+
+                                fun latLngToString(latLng: LatLng?): String {
+                                    if (latLng == null) return "0.0,0.0"
+                                    return URLEncoder.encode("${latLng.latitude},${latLng.longitude}", StandardCharsets.UTF_8.name())
+                                }
+
+                                val startArg = latLngToString(start)
+                                val destArg = latLngToString(dest)
+
+                                navController.navigate("book_ride_tracking/$startArg/$destArg")
                             }
                         )
                     }
                 }
 
-                // --- Previous Rides Section ---
                 if (finishedRides.isNotEmpty()) {
                     item {
-                        // Add a spacer if there are ongoing rides above
                         if (ongoingRides.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(16.dp))
                         }
@@ -121,13 +137,14 @@ fun YourRidesScreen(navController: NavController, rideHistoryViewModel: RideHist
 @Composable
 fun OngoingRideItem(
     ride: RideHistory,
-    onFinishClick: () -> Unit
+    onFinishClick: () -> Unit,
+    onTrackClick: () -> Unit // <-- This was the missing parameter
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy, hh:mm a", Locale.getDefault()) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp), // More elevation for ongoing
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -139,12 +156,21 @@ fun OngoingRideItem(
             Text("Price: ${ride.priceText}", fontWeight = FontWeight.Bold)
             Text("Class: ${ride.rideClass}")
             Spacer(modifier = Modifier.height(12.dp))
-            Button( // Debug button to finish the ride
-                onClick = onFinishClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-            ) {
-                Text("DEBUG: Finish Ride")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onFinishClick,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                ) {
+                    Text("DEBUG: Finish")
+                }
+                Button(
+                    onClick = onTrackClick,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4))
+                ) {
+                    Text("Track Ride")
+                }
             }
         }
     }

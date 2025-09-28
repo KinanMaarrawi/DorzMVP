@@ -1,5 +1,6 @@
 package com.example.dorzmvp
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -26,13 +27,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.google.android.gms.maps.model.LatLng
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 private val dorzRed = Color(0xFFD32F2F)
 private val dorzWhite = Color.White
 private val successGreen = Color(0xFF34A853)
 
 @Composable
-fun RideConfirmedScreen(navController: NavController) {
+fun RideConfirmedScreen(
+    navController: NavController,
+    startLocation: LatLng?,
+    destinationLocation: LatLng?
+) {
     Scaffold { paddingValues ->
         Column(
             modifier = Modifier
@@ -42,7 +50,6 @@ fun RideConfirmedScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Large Tick Icon
             Icon(
                 imageVector = Icons.Default.CheckCircle,
                 contentDescription = "Ride Confirmed",
@@ -52,7 +59,6 @@ fun RideConfirmedScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Confirmation Text
             Text(
                 text = "Ride Confirmed!",
                 style = MaterialTheme.typography.headlineLarge,
@@ -71,8 +77,17 @@ fun RideConfirmedScreen(navController: NavController) {
             // Button to go to Ride Tracking
             Button(
                 onClick = {
-                    // Dummy navigation for now
-                    navController.navigate("book_ride_tracking")
+                    // Encode the LatLng strings to make them URL-safe
+                    fun latLngToString(latLng: LatLng?): String {
+                        if (latLng == null) return "0.0,0.0"
+                        return URLEncoder.encode("${latLng.latitude},${latLng.longitude}", StandardCharsets.UTF_8.name())
+                    }
+
+                    val start = latLngToString(startLocation)
+                    val dest = latLngToString(destinationLocation)
+
+                    // Navigate with the new route and arguments
+                    navController.navigate("book_ride_tracking/$start/$dest")
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -93,15 +108,20 @@ fun RideConfirmedScreen(navController: NavController) {
                 onClick = {
                     navController.navigate("home_screen") {
                         // Clear the entire back stack so the user can't go back to the payment/confirmation screens
-                        popUpTo(0)
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = dorzRed),
-                border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(dorzRed))
+                // FIXED: Use ButtonDefaults.outlinedButtonColors and create a BorderStroke manually
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = dorzRed
+                ),
+                border = BorderStroke(1.dp, dorzRed)
             ) {
                 Text("Back to Home", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }

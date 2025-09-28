@@ -39,6 +39,10 @@ android {
         buildConfigField("String", "YANGO_API_KEY", "\"$yangoApiKey\"")
         buildConfigField("String", "YANGO_CLID", "\"$yangoClid\"")
 
+        // --- THIS IS THE FIX ---
+        // Expose the Maps API key as a BuildConfig field so Kotlin code can access it
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+
         // Inject the Maps API key into the manifest.
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
@@ -126,6 +130,7 @@ dependencies {
     // Navigation
     val nav_version = "2.9.3"
     implementation("androidx.navigation:navigation-compose:$nav_version")
+    implementation("com.google.maps:google-maps-services:2.2.0")
 
     // Networking (Retrofit and OkHttp)
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
