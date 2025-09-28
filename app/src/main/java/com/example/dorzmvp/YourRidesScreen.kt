@@ -1,12 +1,33 @@
 package com.example.dorzmvp
 
 import android.util.Log
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +49,21 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+// Predefined colors for consistent styling.
+private val dorzRed = Color(0xFFD32F2F)
+private val dorzWhite = Color.White
+
+/**
+ * Displays a list of the user's ongoing and finished rides.
+ *
+ * This screen fetches ride history from the [RideHistoryViewModel] and separates it
+ * into two sections. It provides actions to track an ongoing ride or "finish" it
+ * for debugging purposes.
+ *
+ * @param navController Controller for navigating to other screens, like ride tracking.
+ * @param rideHistoryViewModel ViewModel for accessing and managing ride history data.
+ * @param bookRideViewModel ViewModel to get location data for tracking an ongoing ride.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun YourRidesScreen(
@@ -35,6 +71,7 @@ fun YourRidesScreen(
     rideHistoryViewModel: RideHistoryViewModel,
     bookRideViewModel: BookRideViewModel
 ) {
+    // Collect ride lists from the ViewModel as state.
     val ongoingRides by rideHistoryViewModel.ongoingRides.collectAsState(initial = emptyList())
     val finishedRides by rideHistoryViewModel.finishedRides.collectAsState(initial = emptyList())
 
@@ -44,16 +81,17 @@ fun YourRidesScreen(
                 title = { Text("Your Rides") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = dorzWhite)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFD32F2F),
-                    titleContentColor = Color.White
+                    containerColor = dorzRed,
+                    titleContentColor = dorzWhite
                 )
             )
         }
     ) { paddingValues ->
+        // Display a message if there is no ride history.
         if (ongoingRides.isEmpty() && finishedRides.isEmpty()) {
             Box(
                 modifier = Modifier.padding(paddingValues).fillMaxSize(),
@@ -68,6 +106,7 @@ fun YourRidesScreen(
                 )
             }
         } else {
+            // Display the lists of ongoing and finished rides.
             LazyColumn(
                 modifier = Modifier
                     .padding(paddingValues)
@@ -76,10 +115,11 @@ fun YourRidesScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
+                // --- Ongoing Rides Section ---
                 if (ongoingRides.isNotEmpty()) {
                     item {
                         Text(
-                            text = "Ongoing Ride",
+                            "Ongoing Ride",
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
@@ -92,12 +132,17 @@ fun YourRidesScreen(
                                 rideHistoryViewModel.finishRide(ride)
                             },
                             onTrackClick = {
+                                // Retrieve the start/destination from the booking flow's ViewModel.
                                 val start = bookRideViewModel.startLocation.value
                                 val dest = bookRideViewModel.destinationLocation.value
 
+                                // Helper to safely encode LatLng for navigation.
                                 fun latLngToString(latLng: LatLng?): String {
-                                    if (latLng == null) return "0.0,0.0"
-                                    return URLEncoder.encode("${latLng.latitude},${latLng.longitude}", StandardCharsets.UTF_8.name())
+                                    val coords = latLng ?: return "0.0,0.0"
+                                    return URLEncoder.encode(
+                                        "${coords.latitude},${coords.longitude}",
+                                        StandardCharsets.UTF_8.name()
+                                    )
                                 }
 
                                 val startArg = latLngToString(start)
@@ -109,24 +154,21 @@ fun YourRidesScreen(
                     }
                 }
 
+                // --- Previous Rides Section ---
                 if (finishedRides.isNotEmpty()) {
                     item {
-                        if (ongoingRides.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
+                        if (ongoingRides.isNotEmpty()) Spacer(Modifier.height(16.dp))
                         Text(
-                            text = "Previous Rides",
+                            "Previous Rides",
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                     items(finishedRides) { ride ->
-                        PreviousRideItem(
-                            ride = ride,
-                            onReorderClick = {
-                                Log.d("YourRidesScreen", "Reorder clicked for ride: ${ride.id}")
-                            }
-                        )
+                        PreviousRideItem(ride = ride) {
+                            Log.d("YourRidesScreen", "Reorder clicked for ride: ${ride.id}")
+                            // TODO: Implement reorder functionality.
+                        }
                     }
                 }
             }
@@ -134,11 +176,18 @@ fun YourRidesScreen(
     }
 }
 
+/**
+ * A card representing a currently ongoing ride.
+ *
+ * @param ride The ongoing ride data.
+ * @param onFinishClick A debug action to manually mark the ride as finished.
+ * @param onTrackClick Action to navigate to the live tracking screen.
+ */
 @Composable
-fun OngoingRideItem(
+private fun OngoingRideItem(
     ride: RideHistory,
     onFinishClick: () -> Unit,
-    onTrackClick: () -> Unit // <-- This was the missing parameter
+    onTrackClick: () -> Unit
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy, hh:mm a", Locale.getDefault()) }
 
@@ -147,15 +196,15 @@ fun OngoingRideItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("From: ${ride.startAddress}", fontWeight = FontWeight.SemiBold)
             Text("To: ${ride.destinationAddress}", fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(4.dp))
             Text(dateFormatter.format(Date(ride.timestamp)), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            Spacer(modifier = Modifier.height(4.dp))
             Text("Price: ${ride.priceText}", fontWeight = FontWeight.Bold)
             Text("Class: ${ride.rideClass}")
-            Spacer(modifier = Modifier.height(12.dp))
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onFinishClick,
@@ -167,7 +216,7 @@ fun OngoingRideItem(
                 Button(
                     onClick = onTrackClick,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4))
+                    colors = ButtonDefaults.buttonColors(containerColor = dorzRed)
                 ) {
                     Text("Track Ride")
                 }
@@ -176,8 +225,14 @@ fun OngoingRideItem(
     }
 }
 
+/**
+ * A card representing a previously completed ride.
+ *
+ * @param ride The finished ride data.
+ * @param onReorderClick Action to start a new booking with the same route.
+ */
 @Composable
-fun PreviousRideItem(
+private fun PreviousRideItem(
     ride: RideHistory,
     onReorderClick: () -> Unit
 ) {
@@ -185,20 +240,17 @@ fun PreviousRideItem(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("From: ${ride.startAddress}", fontWeight = FontWeight.SemiBold)
                 Text("To: ${ride.destinationAddress}", fontWeight = FontWeight.SemiBold)
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(dateFormatter.format(Date(ride.timestamp)), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                Spacer(modifier = Modifier.height(4.dp))
                 Text("Price: ${ride.priceText}", fontWeight = FontWeight.Bold)
                 Text("Class: ${ride.rideClass}")
             }
@@ -206,8 +258,8 @@ fun PreviousRideItem(
             Button(
                 onClick = onReorderClick,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFD32F2F),
-                    contentColor = Color.White
+                    containerColor = dorzRed,
+                    contentColor = dorzWhite
                 )
             ) {
                 Text("Order Again")

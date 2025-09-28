@@ -31,10 +31,22 @@ import com.google.android.gms.maps.model.LatLng
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+// Predefined colors for consistent styling.
 private val dorzRed = Color(0xFFD32F2F)
 private val dorzWhite = Color.White
 private val successGreen = Color(0xFF34A853)
 
+/**
+ * A confirmation screen displayed after a user successfully books a ride.
+ *
+ * This screen provides feedback that the ride is confirmed and offers two main actions:
+ * 1. Navigate to a real-time tracking screen for the ride.
+ * 2. Navigate back to the home screen.
+ *
+ * @param navController The navigation controller for handling screen transitions.
+ * @param startLocation The starting coordinates of the booked ride.
+ * @param destinationLocation The destination coordinates of the booked ride.
+ */
 @Composable
 fun RideConfirmedScreen(
     navController: NavController,
@@ -46,7 +58,7 @@ fun RideConfirmedScreen(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-                .padding(32.dp),
+                .padding(32.dp), // Extra padding for centered content
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -59,6 +71,7 @@ fun RideConfirmedScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Confirmation text
             Text(
                 text = "Ride Confirmed!",
                 style = MaterialTheme.typography.headlineLarge,
@@ -74,20 +87,22 @@ fun RideConfirmedScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Button to go to Ride Tracking
+            // Button to navigate to the ride tracking screen.
             Button(
                 onClick = {
-                    // Encode the LatLng strings to make them URL-safe
+                    // Encodes LatLng objects into URL-safe strings for navigation arguments.
                     fun latLngToString(latLng: LatLng?): String {
-                        if (latLng == null) return "0.0,0.0"
-                        return URLEncoder.encode("${latLng.latitude},${latLng.longitude}", StandardCharsets.UTF_8.name())
+                        val coords = latLng ?: LatLng(0.0, 0.0) // Fallback for safety
+                        return URLEncoder.encode(
+                            "${coords.latitude},${coords.longitude}",
+                            StandardCharsets.UTF_8.name()
+                        )
                     }
 
-                    val start = latLngToString(startLocation)
-                    val dest = latLngToString(destinationLocation)
+                    val startArg = latLngToString(startLocation)
+                    val destArg = latLngToString(destinationLocation)
 
-                    // Navigate with the new route and arguments
-                    navController.navigate("book_ride_tracking/$start/$dest")
+                    navController.navigate("book_ride_tracking/$startArg/$destArg")
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -103,11 +118,12 @@ fun RideConfirmedScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Button to go back to Home Menu
+            // Button to go back to the home screen, clearing the booking flow from the back stack.
             Button(
                 onClick = {
                     navController.navigate("home_screen") {
-                        // Clear the entire back stack so the user can't go back to the payment/confirmation screens
+                        // Clear the back stack to prevent the user from navigating back
+                        // to the payment or confirmation screens.
                         popUpTo(navController.graph.startDestinationId) {
                             inclusive = true
                         }
@@ -117,10 +133,7 @@ fun RideConfirmedScreen(
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(12.dp),
-                // FIXED: Use ButtonDefaults.outlinedButtonColors and create a BorderStroke manually
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = dorzRed
-                ),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = dorzRed),
                 border = BorderStroke(1.dp, dorzRed)
             ) {
                 Text("Back to Home", fontSize = 18.sp, fontWeight = FontWeight.Bold)

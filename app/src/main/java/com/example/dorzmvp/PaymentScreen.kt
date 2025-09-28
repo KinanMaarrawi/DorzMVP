@@ -1,15 +1,34 @@
 package com.example.dorzmvp
 
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,13 +42,30 @@ import com.example.dorzmvp.db.RideStatus
 import com.example.dorzmvp.network.TaxiOptionResponse
 import com.example.dorzmvp.ui.viewmodel.RideHistoryViewModel
 
+// App-specific colors for consistent styling.
 private val dorzRed = Color(0xFFD32F2F)
 private val dorzWhite = Color.White
 
+/**
+ * Represents the available payment methods for a ride.
+ */
 private enum class PaymentMethod {
     NONE, GOOGLE_PAY, CARD, CASH
 }
 
+/**
+ * A screen for confirming ride details and selecting a payment method.
+ *
+ * This screen displays a summary of the ride, provides payment options (Card, Cash),
+ * handles card input validation, and upon confirmation, saves the ride to history
+ * and navigates to the confirmation screen.
+ *
+ * @param navController Controller for navigating to the next screen.
+ * @param rideOption The specific taxi ride option chosen by the user.
+ * @param startAddress The starting address of the ride.
+ * @param destinationAddress The destination address of the ride.
+ * @param rideHistoryViewModel ViewModel for saving the ride to the database.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentScreen(
@@ -37,20 +73,24 @@ fun PaymentScreen(
     rideOption: TaxiOptionResponse,
     startAddress: String?,
     destinationAddress: String?,
-    rideHistoryViewModel: RideHistoryViewModel // Use the correct, dedicated ViewModel
+    rideHistoryViewModel: RideHistoryViewModel
 ) {
+    // --- State Management ---
     var selectedPaymentMethod by rememberSaveable { mutableStateOf(PaymentMethod.NONE) }
     var isCardFormVisible by rememberSaveable { mutableStateOf(false) }
 
+    // State for card input fields.
     var cardNumber by rememberSaveable { mutableStateOf("") }
     var expiryDate by rememberSaveable { mutableStateOf("") }
     var cvv by rememberSaveable { mutableStateOf("") }
 
+    // Real-time validation for card details.
     val isCardNumberValid = cardNumber.replace(" ", "").length == 16
     val isExpiryValid = Regex("^(0[1-9]|1[0-2])/\\d{2}$").matches(expiryDate)
     val isCvvValid = cvv.length == 3
     val isCardInfoValid = isCardNumberValid && isExpiryValid && isCvvValid
 
+    // Determines if the confirm button should be enabled.
     val isConfirmEnabled =
         selectedPaymentMethod == PaymentMethod.CASH ||
                 (selectedPaymentMethod == PaymentMethod.CARD && isCardInfoValid)
@@ -73,28 +113,7 @@ fun PaymentScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // --- Ride Info Card ---
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(4.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Your Journey for Today!",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = dorzRed
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text("From: ${startAddress ?: "Unknown Start"}")
-                    Text("To: ${destinationAddress ?: "Unknown Destination"}")
-                    Spacer(Modifier.height(12.dp))
-                    Text("Ride: ${rideOption.classText ?: "Unknown"}")
-                    Text("Estimated cost: ${rideOption.priceText?.replace("dirham", "AED") ?: "Not available"}")
-                }
-            }
-
+            RideInfoCard(startAddress, destinationAddress, rideOption)
             Spacer(Modifier.height(24.dp))
 
             // --- Payment Buttons ---
@@ -129,7 +148,7 @@ fun PaymentScreen(
                 )
             }
 
-            // --- Card Form ---
+            // --- Card Form (Animated) ---
             AnimatedVisibility(
                 visible = isCardFormVisible,
                 enter = fadeIn(tween(300)),
@@ -138,13 +157,15 @@ fun PaymentScreen(
                 CardDetailsForm(
                     cardNumber = cardNumber,
                     onCardNumberChange = {
-                        val digits = it.filter { c -> c.isDigit() }.take(16)
+                        // Format card number with spaces every 4 digits.
+                        val digits = it.filter(Char::isDigit).take(16)
                         cardNumber = digits.chunked(4).joinToString(" ")
                     },
                     cardNumberError = !isCardNumberValid && cardNumber.isNotEmpty(),
                     expiryDate = expiryDate,
                     onExpiryDateChange = {
-                        val clean = it.filter { c -> c.isDigit() }.take(4)
+                        // Format expiry date with a slash (MM/YY).
+                        val clean = it.filter(Char::isDigit).take(4)
                         expiryDate = when {
                             clean.length >= 3 -> clean.substring(0, 2) + "/" + clean.substring(2)
                             else -> clean
@@ -152,40 +173,36 @@ fun PaymentScreen(
                     },
                     expiryError = !isExpiryValid && expiryDate.isNotEmpty(),
                     cvv = cvv,
-                    onCvvChange = {
-                        cvv = it.filter { c -> c.isDigit() }.take(3)
-                    },
+                    onCvvChange = { cvv = it.filter(Char::isDigit).take(3) },
                     cvvError = !isCvvValid && cvv.isNotEmpty()
                 )
             }
 
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f)) // Pushes the confirm button to the bottom.
 
-            // --- Confirm Button ---
+            // --- Confirm Ride Button ---
             Button(
                 onClick = {
-                    if (isConfirmEnabled) {
-                        val rideToSave = RideHistory(
-                            startAddress = startAddress ?: "Unknown",
-                            destinationAddress = destinationAddress ?: "Unknown",
-                            priceText = rideOption.priceText ?: "N/A",
-                            rideClass = rideOption.classText ?: "Unknown",
-                            status = RideStatus.ONGOING // <-- Set the status here
-                        )
-                        rideHistoryViewModel.saveRideToHistory(rideToSave)
-                        navController.navigate("book_ride_confirmed") {
-                            popUpTo("home_screen")
-                        }
+                    val rideToSave = RideHistory(
+                        startAddress = startAddress ?: "Unknown",
+                        destinationAddress = destinationAddress ?: "Unknown",
+                        priceText = rideOption.priceText ?: "N/A",
+                        rideClass = rideOption.classText ?: "Unknown",
+                        status = RideStatus.ONGOING
+                    )
+                    rideHistoryViewModel.saveRideToHistory(rideToSave)
+
+                    navController.navigate("book_ride_confirmed") {
+                        // Clear the back stack up to home to prevent going back to booking flow.
+                        popUpTo("home_screen")
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(12.dp),
                 enabled = isConfirmEnabled,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = dorzRed,
                     contentColor = dorzWhite,
-                    disabledContainerColor = Color.LightGray,
-                    disabledContentColor = Color.DarkGray
+                    disabledContainerColor = Color.LightGray
                 )
             ) {
                 Text("Confirm Ride", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -194,6 +211,42 @@ fun PaymentScreen(
     }
 }
 
+/**
+ * A summary card displaying the key details of the ride.
+ */
+@Composable
+private fun RideInfoCard(
+    startAddress: String?,
+    destinationAddress: String?,
+    rideOption: TaxiOptionResponse
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Your Journey for Today!",
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = dorzRed
+            )
+            Spacer(Modifier.height(12.dp))
+            Text("From: ${startAddress ?: "Unknown Start"}")
+            Text("To: ${destinationAddress ?: "Unknown Destination"}")
+            Spacer(Modifier.height(12.dp))
+            Text("Ride: ${rideOption.classText ?: "Unknown"}")
+            Text("Estimated cost: ${rideOption.priceText?.replace("dirham", "AED") ?: "Not available"}")
+        }
+    }
+}
+
+/**
+ * A styled button for selecting a payment method.
+ *
+ * @param isPrimary Marks the button with a distinct style (e.g., for Google Pay).
+ */
 @Composable
 private fun PaymentButton(
     text: String,
@@ -201,18 +254,26 @@ private fun PaymentButton(
     onClick: () -> Unit,
     isPrimary: Boolean = false
 ) {
-    val bg = if (isSelected) dorzRed else if (isPrimary) Color.Black else dorzWhite
-    val fg = if (isSelected || isPrimary) dorzWhite else dorzRed
+    val bgColor = when {
+        isSelected -> dorzRed
+        isPrimary -> Color.Black
+        else -> dorzWhite
+    }
+    val contentColor = if (isSelected || isPrimary) dorzWhite else dorzRed
+
     Button(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(50.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = bg, contentColor = fg)
+        colors = ButtonDefaults.buttonColors(containerColor = bgColor, contentColor = contentColor)
     ) {
         Text(text, fontWeight = FontWeight.SemiBold)
     }
 }
 
+/**
+ * A form for entering credit/debit card details with validation feedback.
+ */
 @Composable
 private fun CardDetailsForm(
     cardNumber: String,
@@ -233,7 +294,6 @@ private fun CardDetailsForm(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Enter Card Details", fontWeight = FontWeight.Bold, fontSize = 18.sp)
 
-            // Card Number
             OutlinedTextField(
                 value = cardNumber,
                 onValueChange = onCardNumberChange,
@@ -245,7 +305,6 @@ private fun CardDetailsForm(
             )
             if (cardNumberError) Text("Invalid card number", color = dorzRed, fontSize = 12.sp)
 
-            // Expiry + CVV
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f)) {
                     OutlinedTextField(

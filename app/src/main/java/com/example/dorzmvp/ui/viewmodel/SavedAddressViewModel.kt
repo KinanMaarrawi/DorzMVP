@@ -12,9 +12,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * ViewModel for managing and providing access to saved address data.
+ *
+ * This class interacts with the [SavedAddressRepository] to perform database operations
+ * (add, update, delete) and exposes a flow of saved addresses for the UI to observe.
+ *
+ * @param repository The repository for accessing saved address data.
+ */
 class SavedAddressViewModel(private val repository: SavedAddressRepository) : ViewModel() {
 
-    // Corrected: Now uses the 'allAddresses' property from the repository
+    /**
+     * A hot flow ([StateFlow]) that holds the current list of all saved addresses.
+     * The UI can collect this flow to automatically update when the address list changes.
+     * The data is shared and kept active for 5 seconds after the last observer is gone.
+     */
     val savedAddresses: StateFlow<List<SavedAddress>> = repository.allAddresses
         .stateIn(
             scope = viewModelScope,
@@ -22,18 +34,33 @@ class SavedAddressViewModel(private val repository: SavedAddressRepository) : Vi
             initialValue = emptyList()
         )
 
+    /**
+     * Inserts a new address into the database on a background thread.
+     *
+     * @param address The [SavedAddress] object to add.
+     */
     fun addAddress(address: SavedAddress) {
         viewModelScope.launch {
             repository.insert(address)
         }
     }
 
+    /**
+     * Updates an existing address in the database on a background thread.
+     *
+     * @param address The [SavedAddress] object to update.
+     */
     fun updateAddress(address: SavedAddress) {
         viewModelScope.launch {
             repository.update(address)
         }
     }
 
+    /**
+     * Deletes a specific address from the database on a background thread.
+     *
+     * @param address The [SavedAddress] object to delete.
+     */
     fun deleteAddress(address: SavedAddress) {
         viewModelScope.launch {
             repository.delete(address)
@@ -41,23 +68,24 @@ class SavedAddressViewModel(private val repository: SavedAddressRepository) : Vi
     }
 }
 
+/**
+ * Factory for creating [SavedAddressViewModel] instances with dependencies.
+ *
+ * This is necessary because the ViewModel has a constructor that requires a [SavedAddressRepository].
+ * This factory handles the creation of the repository and passing it to the ViewModel.
+ */
 class SavedAddressViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        // Check if the requested ViewModel is of the correct type.
         if (modelClass.isAssignableFrom(SavedAddressViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
+            // Get database instance and create the repository.
             val database = AppDatabase.getDatabase(application)
             val repository = SavedAddressRepository(database.savedAddressDao())
+            // Create and return the ViewModel instance.
             return SavedAddressViewModel(repository) as T
         }
+        // Throw an exception if the modelClass is unknown.
         throw IllegalArgumentException("Unknown ViewModel class")
     }
-
-    // REMOVED: This logic was incorrect here. It belongs in the RideHistoryViewModel logic,
-    // which is already correctly implemented elsewhere.
-    //
-    // val allRides: Flow<List<RideHistory>> = repository.allRides
-    //
-    // fun saveRideToHistory(ride: RideHistory) = viewModelScope.launch {
-    //     repository.insertRideHistory(ride)
-    // }
 }

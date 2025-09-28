@@ -3,7 +3,7 @@ package com.example.dorzmvp
 import android.content.Context
 import android.location.Geocoder
 import android.util.Log
-import android.widget.Toast // Added for validation messages
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -23,7 +22,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -49,7 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color // Required for custom colors
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,34 +57,51 @@ import androidx.navigation.NavController
 import com.example.dorzmvp.db.SavedAddress
 import com.example.dorzmvp.ui.viewmodel.SavedAddressViewModel
 import com.google.android.gms.maps.model.LatLng
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-private const val TAG = "SavedAddressesScreen" 
+// Logcat tag for debugging this screen.
+private const val TAG = "SavedAddressesScreen"
+// App-specific brand colors for consistent styling.
+private val dorzRed = Color(0xFFD32F2F)
+private val dorzWhite = Color.White
 
+/**
+ * A screen that displays, creates, edits, and deletes a user's saved addresses.
+ *
+ * It observes a list of addresses from the [SavedAddressViewModel] and provides
+ * UI for list management. It launches a separate map screen (`PickLocationScreen`)
+ * to get coordinates and handles the result via the NavController's `SavedStateHandle`.
+ *
+ * @param navController Controller for navigation, especially to the location picker.
+ * @param viewModel ViewModel for interacting with the address data source.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavedAddressesScreen(
     navController: NavController,
     viewModel: SavedAddressViewModel = viewModel()
 ) {
+    // --- State Management ---
     val addresses by viewModel.savedAddresses.collectAsState()
     var showDialog by rememberSaveable { mutableStateOf(false) }
-    var addressToEdit by rememberSaveable { mutableStateOf<SavedAddress?>(null) }
+    var addressToEdit by remember { mutableStateOf<SavedAddress?>(null) }
 
+    // State for the Add/Edit dialog, hoisted here to survive dialog dismissal
+    // when navigating to the map picker.
     var nameState by rememberSaveable { mutableStateOf("") }
-    var addressStringState by rememberSaveable { mutableStateOf("") } 
+    var addressStringState by rememberSaveable { mutableStateOf("") }
     var latState by rememberSaveable { mutableStateOf(0.0) }
     var lngState by rememberSaveable { mutableStateOf(0.0) }
     var expectingLocationResult by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
+    // --- Navigation Result Handling ---
+    // Observe the result from the `PickLocationScreen`.
     val navBackStackEntry = navController.currentBackStackEntry
     val pickedLocationState: State<LatLng?> = navBackStackEntry
         ?.savedStateHandle
@@ -94,66 +109,68 @@ fun SavedAddressesScreen(
         ?.observeAsState(initial = null) ?: remember { mutableStateOf(null) }
     val pickedLocationValue by pickedLocationState
 
+    // This effect runs when a location is received from the picker screen.
     LaunchedEffect(pickedLocationValue, expectingLocationResult) {
-        pickedLocationValue?.let { latLng ->
-            if (expectingLocationResult) {
-                Log.d(TAG, "Received picked location: $latLng")
-                latState = latLng.latitude
-                lngState = latLng.longitude
-                addressStringState = getAddressFromLatLng(context, latLng)
-                navBackStackEntry?.savedStateHandle?.remove<LatLng>("pickedLocationForSavedAddress")
-                showDialog = true
-                expectingLocationResult = false
-            }
+        if (expectingLocationResult && pickedLocationValue != null) {
+            val latLng = pickedLocationValue!!
+            Log.d(TAG, "Received picked location: $latLng")
+
+            // Update state with the new location data.
+            latState = latLng.latitude
+            lngState = latLng.longitude
+            addressStringState = getAddressFromLatLng(context, latLng)
+
+            // Consume the result and reset flags to prevent re-processing.
+            navBackStackEntry?.savedStateHandle?.remove<LatLng>("pickedLocationForSavedAddress")
+            expectingLocationResult = false
+            showDialog = true // Re-open the dialog with the new data.
         }
     }
 
+    // --- UI Layout ---
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Saved Addresses") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFD32F2F), 
-                    titleContentColor = Color.White    
+                    containerColor = dorzRed,
+                    titleContentColor = dorzWhite
                 )
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
+                    // Reset state for adding a new address.
                     addressToEdit = null
                     nameState = ""
-                    addressStringState = "" 
+                    addressStringState = ""
                     latState = 0.0
                     lngState = 0.0
                     showDialog = true
                 },
-                containerColor = Color(0xFFD32F2F), 
-                contentColor = Color.White         
+                containerColor = dorzRed,
+                contentColor = dorzWhite
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add new address")
             }
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-        ) {
+        Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
             if (addresses.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No saved addresses yet. Click the '+' button to add one.")
+                // Display a message if the list is empty.
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No saved addresses. Tap '+' to add one.")
                 }
             } else {
-                LazyColumn(modifier = Modifier.padding(16.dp)) {
+                // Display the list of saved addresses.
+                LazyColumn(modifier = Modifier.padding(8.dp)) {
                     items(addresses) { address ->
                         SavedAddressItem(
                             address = address,
                             onDelete = { viewModel.deleteAddress(address) },
                             onEdit = {
+                                // Populate state for editing an existing address.
                                 addressToEdit = address
                                 nameState = address.name
                                 addressStringState = address.address
@@ -173,79 +190,67 @@ fun SavedAddressesScreen(
                 editingAddress = addressToEdit,
                 currentName = nameState,
                 currentAddressString = addressStringState,
-                currentLat = latState, 
-                currentLng = lngState, 
                 onNameChange = { nameState = it },
-                onAddressChange = { addressStringState = it },
+                onDismiss = { showDialog = false },
                 onPickLocation = {
-                    showDialog = false
+                    showDialog = false // Close dialog before navigating.
                     expectingLocationResult = true
                     navController.navigate("pick_location_for_saved_address_route")
                 },
-                onDismiss = { showDialog = false },
-                onSave = { name, addressStr, lat, lng ->
-                    val currentAddresses = viewModel.savedAddresses.value
-                    var validationPassed = true
-                    var toastMessage = ""
-
-                    if (name.isBlank() && (lat == 0.0 && lng == 0.0)) {
-                        toastMessage = "Name and location are required."
-                        validationPassed = false
-                    } else if (name.isBlank()) {
-                        toastMessage = "Name cannot be empty."
-                        validationPassed = false
-                    } else if (lat == 0.0 && lng == 0.0) {
-                        toastMessage = "Location is required. Please pick a location."
-                        validationPassed = false
-                    } else {
-                        val isDuplicateName = if (addressToEdit == null) {
-                            currentAddresses.any { it.name.equals(name, ignoreCase = true) }
-                        } else {
-                            currentAddresses.any { it.name.equals(name, ignoreCase = true) && it.id != addressToEdit!!.id }
-                        }
-                        if (isDuplicateName) {
-                            toastMessage = "An address with this name already exists."
-                            validationPassed = false
-                        }
+                onSave = { name, addressStr ->
+                    // --- Save Logic with Validation ---
+                    if (name.isBlank()) {
+                        Toast.makeText(context, "Name cannot be empty.", Toast.LENGTH_SHORT).show()
+                        return@AddEditAddressDialog
+                    }
+                    if (latState == 0.0 && lngState == 0.0) {
+                        Toast.makeText(context, "Please pick a location from the map.", Toast.LENGTH_SHORT).show()
+                        return@AddEditAddressDialog
                     }
 
-                    if (validationPassed) {
-                        val finalAddress = SavedAddress(
-                            id = addressToEdit?.id ?: 0,
-                            name = name,
-                            address = if (addressStr.isBlank()) {
-                                "Lat: %.4f, Lng: %.4f".format(Locale.US, lat, lng)
-                            } else {
-                                addressStr
-                            },
-                            latitude = lat,
-                            longitude = lng
-                        )
-                        if (addressToEdit == null) {
-                            viewModel.addAddress(finalAddress)
-                            Log.d(TAG, "Added new address: $finalAddress")
-                        } else {
-                            viewModel.updateAddress(finalAddress)
-                            Log.d(TAG, "Updated address: $finalAddress")
-                        }
-                        showDialog = false
-                    } else {
-                        Toast.makeText(context, toastMessage, Toast.LENGTH_LONG).show()
+                    val isDuplicate = addresses.any {
+                        it.name.equals(name, ignoreCase = true) && it.id != (addressToEdit?.id ?: 0)
                     }
-                },
-                coroutineScope = coroutineScope,
-                context = context
+                    if (isDuplicate) {
+                        Toast.makeText(context, "An address with this name already exists.", Toast.LENGTH_SHORT).show()
+                        return@AddEditAddressDialog
+                    }
+
+                    // --- Create or Update Address ---
+                    val finalAddress = SavedAddress(
+                        id = addressToEdit?.id ?: 0,
+                        name = name,
+                        address = addressStr.ifBlank {
+                            // Provide a fallback address string if geocoding failed.
+                            "Lat: %.4f, Lng: %.4f".format(Locale.US, latState, lngState)
+                        },
+                        latitude = latState,
+                        longitude = lngState
+                    )
+
+                    if (addressToEdit == null) {
+                        viewModel.addAddress(finalAddress)
+                        Log.d(TAG, "Added new address: $finalAddress")
+                    } else {
+                        viewModel.updateAddress(finalAddress)
+                        Log.d(TAG, "Updated address: $finalAddress")
+                    }
+                    showDialog = false
+                }
             )
         }
     }
 }
 
+/**
+ * A single row item in the `LazyColumn` for displaying a saved address.
+ *
+ * @param address The address data to display.
+ * @param onDelete Callback for when the delete button is clicked.
+ * @param onEdit Callback for when the edit button is clicked.
+ */
 @Composable
-fun SavedAddressItem(
-    address: SavedAddress,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit
-) {
+fun SavedAddressItem(address: SavedAddress, onDelete: () -> Unit, onEdit: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -255,9 +260,9 @@ fun SavedAddressItem(
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
             Text(text = address.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text(text = address.address, fontSize = 14.sp, style = MaterialTheme.typography.bodyMedium)
+            Text(text = address.address, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row { 
+        Row {
             IconButton(onClick = onEdit) {
                 Icon(Icons.Filled.Edit, contentDescription = "Edit ${address.name}")
             }
@@ -268,28 +273,33 @@ fun SavedAddressItem(
     }
 }
 
-
+/**
+ * A dialog for adding a new address or editing an existing one.
+ *
+ * @param editingAddress The address being edited, or null if adding a new one.
+ * @param currentName The current value for the name field.
+ * @param currentAddressString The current value for the address string field.
+ * @param onNameChange Callback when the name field changes.
+ * @param onPickLocation Callback to trigger navigation to the map picker.
+ * @param onDismiss Callback when the dialog is dismissed.
+ * @param onSave Callback to save the address with the provided data.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditAddressDialog(
     editingAddress: SavedAddress?,
     currentName: String,
     currentAddressString: String,
-    currentLat: Double, 
-    currentLng: Double, 
     onNameChange: (String) -> Unit,
-    onAddressChange: (String) -> Unit,
     onPickLocation: () -> Unit,
     onDismiss: () -> Unit,
-    onSave: (name: String, addressStr: String, lat: Double, lng: Double) -> Unit,
-    coroutineScope: CoroutineScope, 
-    context: Context 
+    onSave: (name: String, addressStr: String) -> Unit
 ) {
+    // Local state for the dialog's input fields, initialized from the parent's state.
     var nameInput by rememberSaveable(currentName) { mutableStateOf(currentName) }
     var addressInput by rememberSaveable(currentAddressString) { mutableStateOf(currentAddressString) }
-    val latForSave = currentLat
-    val lngForSave = currentLng
 
+    // Update local state if the external state changes (e.g., after picking a location).
     LaunchedEffect(currentName, currentAddressString) {
         nameInput = currentName
         addressInput = currentAddressString
@@ -297,34 +307,36 @@ fun AddEditAddressDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (editingAddress == null) "Add New Address" else "Edit Address", color = Color(0xFFD32F2F)) },
+        title = { Text(if (editingAddress == null) "Add New Address" else "Edit Address", color = dorzRed) },
         text = {
             Column {
                 TextField(
                     value = nameInput,
-                    onValueChange = { nameInput = it; onNameChange(it) },
+                    onValueChange = {
+                        nameInput = it
+                        onNameChange(it) // Also update parent state.
+                    },
                     label = { Text("Name (e.g., Home, Work)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
+                // The address field is read-only as it's populated by the map picker.
                 TextField(
                     value = addressInput,
-                    onValueChange = { addressInput = it; onAddressChange(it) },
-                    label = { Text("Address (auto-filled from map)") }, 
+                    onValueChange = { /* Read-only */ },
+                    label = { Text("Address (from map)") },
                     modifier = Modifier.fillMaxWidth(),
+                    readOnly = true,
                     minLines = 2
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
                 Button(
                     onClick = onPickLocation,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFD32F2F),
-                        contentColor = Color.White
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = dorzRed, contentColor = dorzWhite)
                 ) {
                     Text("Pick Location on Map")
                 }
@@ -332,40 +344,34 @@ fun AddEditAddressDialog(
         },
         confirmButton = {
             Button(
-                onClick = {
-                    // Name and address are taken directly from the dialog's local state (nameInput, addressInput)
-                    // Lat and Lng are taken from the values passed into the dialog (latForSave, lngForSave)
-                    // which are updated by the map picker via the parent screen's state.
-                    onSave(nameInput, addressInput, latForSave, lngForSave)
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFD32F2F),
-                    contentColor = Color.White
-                )
+                onClick = { onSave(nameInput, addressInput) },
+                colors = ButtonDefaults.buttonColors(containerColor = dorzRed, contentColor = dorzWhite)
             ) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = Color(0xFFD32F2F)) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = dorzRed) }
         }
     )
 }
 
+/**
+ * Converts geographic coordinates (`LatLng`) into a human-readable address string.
+ * This is a suspending function that safely runs on a background thread.
+ *
+ * @param context The application context.
+ * @param latLng The coordinates to reverse-geocode.
+ * @return The address string, or a fallback coordinate string on failure.
+ */
 private suspend fun getAddressFromLatLng(context: Context, latLng: LatLng): String {
     return withContext(Dispatchers.IO) {
         val geocoder = Geocoder(context, Locale.getDefault())
-        var addressText: String? = null
         try {
             @Suppress("DEPRECATION")
             val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
-
-            if (!addresses.isNullOrEmpty()) {
-                addressText = addresses[0].getAddressLine(0)
-            }
+            addresses?.firstOrNull()?.getAddressLine(0)
         } catch (e: IOException) {
-            Log.e(TAG, "Geocoder IOException for $latLng: ${e.message}", e)
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "Invalid LatLng for Geocoder: $latLng", e)
-        }
-        addressText ?: "Lat: %.5f, Lng: %.5f".format(Locale.US, latLng.latitude, latLng.longitude)
+            Log.e(TAG, "Geocoder failed for $latLng: ${e.message}")
+            null
+        } ?: "Lat: %.5f, Lng: %.5f".format(Locale.US, latLng.latitude, latLng.longitude)
     }
 }
